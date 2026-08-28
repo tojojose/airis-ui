@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { API_URL } from './api-config';
 import { getClerkToken, type AirisAuthState } from './clerk-auth';
 
 type Through = 'ingest' | 'route' | 'detect' | 'inspect' | 'escalate';
@@ -100,7 +101,6 @@ type PipelineRunOut = {
 
 type Props = { auth: AirisAuthState };
 
-const API_URL = '/api/trominos';
 const stageDefinitions = [
   { stage: 'ingest', number: 0, title: 'Ingest', description: 'Decode, correct orientation, hash and read capture metadata.' },
   { stage: 'route', number: 1, title: 'Route', description: 'Identify the site domain and narrow regulatory retrieval.' },

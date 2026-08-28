@@ -1,0 +1,12 @@
+# Configure remote state before production. Replace these placeholders with a
+# dedicated state bucket and key, then rename this file to backend.tf.
+#
+# terraform {
+#   backend "s3" {
+#     bucket       = "replace-with-terraform-state-bucket"
+#     key          = "airis-ui/terraform.tfstate"
+#     region       = "us-east-1"
+#     encrypt      = true
+#     use_lockfile = true
+#   }
+# }

@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AdminConsole, type AdminView } from './admin-console';
+import { API_URL } from './api-config';
 import { ClerkAuth, getClerkToken, type AirisAuthState } from './clerk-auth';
 import { PipelineRun } from './pipeline-run';
 
@@ -72,7 +73,6 @@ const profiles = [
   },
 ];
 
-const API_URL = '/api/trominos';
 type AppView = 'analyze' | 'pipeline' | 'analyze-history' | 'pipeline-history' | AdminView;
 const adminViews: AdminView[] = ['clients', 'knowledge', 'prompts', 'models', 'usage'];
 const initialAuth: AirisAuthState = { ready: false, signedIn: false, isAdmin: false, organizationId: null, organizationSlug: null, organizationName: 'Operations workspace' };
@@ -178,7 +178,7 @@ export default function Home() {
             <button className={`nav-item ${view === 'clients' ? 'active' : ''}`} onClick={() => setView('clients')}><Building2 size={18} /><span>Clients &amp; Projects</span></button>
             <p className="nav-section">AI GOVERNANCE</p>
             <button className={`nav-item ${view === 'knowledge' ? 'active' : ''}`} onClick={() => setView('knowledge')}><BookOpenText size={18} /><span>Knowledge Base</span></button>
-            <button className={`nav-item ${view === 'prompts' ? 'active' : ''}`} onClick={() => setView('prompts')}><FilePenLine size={18} /><span>Prompts</span></button>
+            <button className={`nav-item ${view === 'prompts' ? 'active' : ''}`} onClick={() => setView('prompts')}><FilePenLine size={18} /><span>Prompt Studio</span></button>
             <button className={`nav-item ${view === 'models' ? 'active' : ''}`} onClick={() => setView('models')}><Bot size={18} /><span>Models</span></button>
             <p className="nav-section">USAGE ANALYTICS</p>
             <button className={`nav-item ${view === 'usage' ? 'active' : ''}`} onClick={() => setView('usage')}><CircleDollarSign size={18} /><span>Usage &amp; Cost</span></button>

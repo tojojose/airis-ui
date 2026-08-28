@@ -1,4 +1,4 @@
-const CACHE_NAME = 'airis-shell-v2';
+const CACHE_NAME = 'airis-shell-v3';
 const SHELL = ['/', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', (event) => {

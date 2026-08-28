@@ -2,12 +2,12 @@
 
 import { BookOpenText, Bot, Building2, CircleDollarSign, FilePenLine, LoaderCircle, RefreshCw, ShieldAlert } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { API_URL } from './api-config';
 import { getClerkToken } from './clerk-auth';
 
 export type AdminView = 'clients' | 'knowledge' | 'prompts' | 'models' | 'usage';
 type JsonRecord = Record<string, unknown>;
 
-const API_URL = '/api/trominos';
 const viewConfig: Record<AdminView, { eyebrow: string; title: string; description: string; endpoint: string; collection: string; icon: typeof Building2 }> = {
   clients: { eyebrow: 'TENANT GOVERNANCE', title: 'Clients & Projects', description: 'Onboard organizations, control project access, and see each customer deployment.', endpoint: '/v1/admin/clients', collection: 'clients', icon: Building2 },
   knowledge: { eyebrow: 'GROUNDING SOURCES', title: 'Knowledge Base', description: 'Track the documents used to ground policy and compliance findings.', endpoint: '/v1/admin/kb/documents', collection: 'documents', icon: BookOpenText },

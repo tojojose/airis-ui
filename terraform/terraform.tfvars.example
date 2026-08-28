@@ -1,0 +1,4 @@
+aws_region  = "us-east-1"
+image_tag   = "replace-with-git-commit-sha"
+desired_count = 0
+manage_dns  = false
