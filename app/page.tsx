@@ -174,7 +174,7 @@ export default function Home() {
           <button className={`nav-item ${view === 'pipeline' ? 'active' : ''}`} onClick={() => setView('pipeline')}><Workflow size={18} /><span>Pipeline Run</span></button>
           <button className={`nav-item subnav-item ${view === 'pipeline-history' ? 'active' : ''}`} aria-label="Pipeline run history" onClick={() => setView('pipeline-history')}><History size={15} /><span>History</span></button>
           {auth.isAdmin && <>
-            <p className="nav-section">CLIENT PORTFOLIO</p>
+            <p className="nav-section">CLIENT PORTFOLIOS</p>
             <button className={`nav-item ${view === 'clients' ? 'active' : ''}`} onClick={() => setView('clients')}><Building2 size={18} /><span>Clients &amp; Projects</span></button>
             <p className="nav-section">AI GOVERNANCE</p>
             <button className={`nav-item ${view === 'knowledge' ? 'active' : ''}`} onClick={() => setView('knowledge')}><BookOpenText size={18} /><span>Knowledge Base</span></button>
