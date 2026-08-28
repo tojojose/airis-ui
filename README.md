@@ -27,31 +27,30 @@ docker buildx build \
   --load \
   -t airis-ui:local .
 
-docker run --rm -p 8080:8080 airis-ui:local
+docker run --rm -p 3000:8080 airis-ui:local
 ```
 
-Open `http://localhost:8080`. The container health endpoint is
-`http://localhost:8080/healthz`.
+Open `http://localhost:3000`. The container health endpoint is
+`http://localhost:3000/healthz`. Port 3000 matches the backend's allowed local
+CORS origin; Nginx still listens on port 8080 inside the container.
 
 ## AWS deployment
 
-The Terraform stack is intentionally independent from the AIRIS API stack.
-Bootstrap it with no running task and no DNS change:
+AWS resources are managed by the shared Terraform stack at
+`/Users/tojojose/trominos/airis/terraform`. Do **not** apply the legacy
+`airis-ui/terraform` directory; it is retained temporarily for migration
+reference only.
 
-```bash
-cd terraform
-cp terraform.tfvars.example terraform.tfvars
-terraform init
-terraform plan
-terraform apply
-```
+The shared stack reuses the live ECS cluster, VPC Link, Cloud Map namespace,
+execution role, wildcard ACM certificate, and Route 53 zone. Its UI defaults
+are deliberately safe: zero running tasks and DNS management disabled.
 
-Get the ECR URL from `terraform output -raw ecr_repository_url`, sign Docker in
-to ECR, and push an immutable image tag (normally the Git commit SHA):
+After a reviewed bootstrap apply creates the UI ECR repository, get its URL
+from the shared stack, sign Docker in, and push an immutable Git-SHA tag:
 
 ```bash
 TAG="$(git rev-parse --short=12 HEAD)"
-ECR_URL="$(terraform output -raw ecr_repository_url)"
+ECR_URL="$(terraform -chdir=/Users/tojojose/trominos/airis/terraform output -raw ui_ecr_repository_url)"
 
 aws ecr get-login-password --region us-east-1 | \
   docker login --username AWS --password-stdin "${ECR_URL%%/*}"
@@ -64,21 +63,18 @@ docker buildx build \
   --push .
 ```
 
-Start one task without changing DNS:
+Start one task without changing DNS only after the image exists:
 
 ```bash
-terraform apply -var="image_tag=$TAG" -var="desired_count=1" -var="manage_dns=false"
+terraform -chdir=/Users/tojojose/trominos/airis/terraform plan \
+  -var="ui_image_tag=$TAG" \
+  -var="ui_desired_count=1" \
+  -var="ui_manage_dns=false"
 ```
 
-Verify the raw URL from `terraform output -raw execute_api_url`. Only after it
-passes should DNS be switched:
+Review that plan before applying it. Verify the raw URL from
+`terraform output -raw ui_execute_api_url`. Only after it passes should the
+existing Vercel CNAME be cut over through a separately reviewed DNS plan.
 
-```bash
-terraform apply -var="image_tag=$TAG" -var="desired_count=1" -var="manage_dns=true"
-```
-
-This last command makes `https://app.trominos.com` point to the new UI stack.
-Review the plan before every apply. Do not run it until the existing hosted UI
-can be safely replaced.
-
-The full design and rollback plan are in [plans/plans.md](plans/plans.md).
+The implementation, deployment sequence, DNS cutover, and rollback plan are in
+[plans/plan_ui_aws.md](plans/plan_ui_aws.md).
