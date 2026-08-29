@@ -1,6 +1,9 @@
 node_modules
 .next
 out
+marketing/node_modules
+marketing/.next
+marketing/out
 .git
 .DS_Store
 .env*

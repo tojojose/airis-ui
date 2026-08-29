@@ -1,4 +1,4 @@
-FROM node:22-alpine AS build
+FROM node:22-alpine AS product-build
 
 WORKDIR /app
 
@@ -16,10 +16,24 @@ ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
 
 RUN test -n "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" && npm run build
 
+FROM node:22-alpine AS marketing-build
+
+WORKDIR /marketing
+
+COPY marketing/package.json marketing/package-lock.json ./
+RUN npm ci
+
+COPY marketing/app ./app
+COPY marketing/public ./public
+COPY marketing/next.config.ts marketing/tsconfig.json ./
+
+RUN npm run build
+
 FROM nginxinc/nginx-unprivileged:alpine
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/out /usr/share/nginx/html
+COPY --from=product-build /app/out /usr/share/nginx/html
+COPY --from=marketing-build /marketing/out /usr/share/nginx/html/marketing
 
 EXPOSE 8080
 
