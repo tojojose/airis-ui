@@ -20,7 +20,16 @@ export default function Home() {
         </div>
       </header>
 
-      <section className="hero" id="top">
+      <section className="campaign-section campaign-hero" id="top">
+        <div className="campaign-image" role="img" aria-label="Construction professionals using Airis visual intelligence at an active site" />
+        <div className="campaign-quote">
+          <p>ASSISTIVE BY DESIGN</p>
+          <blockquote>“AI finds the signal. People make the decision.”</blockquote>
+          <span>Airis does not certify compliance or replace professional inspections. It helps qualified teams review more visual evidence with consistent context.</span>
+        </div>
+      </section>
+
+      <section className="hero">
         <div className="hero-copy">
           <p className="eyebrow"><span /> HUMAN-LED VISUAL INTELLIGENCE</p>
           <h1>See potential risks <em>before</em> they become incidents.</h1>
@@ -116,15 +125,6 @@ export default function Home() {
               <div>REGULATIONS <i>+</i> ENGINEERING <i>+</i> POLICIES <i>+</i> PROCEDURES</div>
             </div>
           </div>
-        </div>
-      </section>
-
-      <section className="campaign-section">
-        <div className="campaign-image" role="img" aria-label="Construction professionals using Airis visual intelligence at an active site" />
-        <div className="campaign-quote">
-          <p>ASSISTIVE BY DESIGN</p>
-          <blockquote>“AI finds the signal. People make the decision.”</blockquote>
-          <span>Airis does not certify compliance or replace professional inspections. It helps qualified teams review more visual evidence with consistent context.</span>
         </div>
       </section>
 
