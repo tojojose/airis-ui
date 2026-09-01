@@ -12,7 +12,7 @@ import {
   CircleDollarSign,
   FileCheck2,
   FilePenLine,
-  Grid2X2,
+  FlaskConical,
   History,
   ImagePlus,
   Layers3,
@@ -30,7 +30,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AdminConsole, type AdminView } from './admin-console';
 import { API_URL } from './api-config';
 import { ClerkAuth, getClerkToken, type AirisAuthState } from './clerk-auth';
+import { KnowledgeBasePage } from './knowledge-base/knowledge-base-page';
+import { ClientManagement } from './client-management';
+import { InspectionHistory } from './inspection-history';
 import { PipelineRun } from './pipeline-run';
+import { PortfolioBudgets } from './portfolio-budgets';
+import { ProjectTemplates } from './project-templates';
 
 type Finding = {
   id: string;
@@ -39,6 +44,10 @@ type Finding = {
   severity: string;
   confidence: string;
   confidence_score?: number;
+  retrieval_score?: number | null;
+  verification_status?: 'unverified' | 'confirmed' | 'refuted' | 'indeterminate';
+  verification_reason?: string;
+  display_status?: 'actionable' | 'needs_human_review' | 'hidden_refuted';
   citations?: Array<{ section?: string; text?: string; source?: string }>;
 };
 
@@ -56,8 +65,8 @@ const profiles = [
   {
     id: 'safety',
     name: 'Visual safety scan',
-    label: 'Fast VLM inspection',
-    detail: 'Detects PPE, traffic control, equipment and visible safety risks.',
+    label: 'Verified visual inspection',
+    detail: 'Detects visible safety risks, then independently reviews each proposed finding against the original image.',
     endpoint: '/v1/analyze',
     policies: '5 categories',
     knowledge: 'Built-in prompt',
@@ -73,8 +82,9 @@ const profiles = [
   },
 ];
 
-type AppView = 'analyze' | 'pipeline' | 'analyze-history' | 'pipeline-history' | AdminView;
-const adminViews: AdminView[] = ['clients', 'knowledge', 'prompts', 'models', 'usage'];
+type PortfolioView = 'clients' | 'portfolio-budgets' | 'project-templates';
+type AppView = 'analyze' | 'pipeline' | 'pipeline-history' | 'evaluation' | 'evaluation-history' | PortfolioView | AdminView;
+const adminViews: AppView[] = ['clients', 'portfolio-budgets', 'project-templates', 'knowledge', 'prompts', 'models', 'usage'];
 const initialAuth: AirisAuthState = { ready: false, signedIn: false, isAdmin: false, organizationId: null, organizationSlug: null, organizationName: 'Operations workspace' };
 
 export default function Home() {
@@ -87,13 +97,16 @@ export default function Home() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [auth, setAuth] = useState<AirisAuthState>(initialAuth);
-  const [view, setView] = useState<AppView>('analyze');
+  const [view, setView] = useState<AppView>('pipeline');
+  const [inspectionScope, setInspectionScope] = useState({ orgId: '', projectId: '' });
   const cameraInput = useRef<HTMLInputElement>(null);
   const uploadInput = useRef<HTMLInputElement>(null);
   const profile = useMemo(() => profiles.find((item) => item.id === profileId) ?? profiles[0], [profileId]);
+  const visibleFindings = useMemo(() => result?.findings.filter((finding) =>
+    finding.display_status !== 'hidden_refuted' && finding.verification_status !== 'refuted') ?? [], [result]);
   const handleAuthChange = useCallback((next: AirisAuthState) => {
     setAuth(next);
-    if (!next.isAdmin) setView((current) => adminViews.includes(current as AdminView) ? 'analyze' : current);
+    if (!next.isAdmin) setView((current) => adminViews.includes(current as AdminView) ? 'pipeline' : current);
   }, []);
 
   useEffect(() => {
@@ -168,18 +181,19 @@ export default function Home() {
         <div className="brand-lockup"><div className="brand-mark"><ShieldCheck size={22} strokeWidth={2.2} /></div><div><strong>airis</strong><span>vision governance</span></div></div>
         <nav aria-label="Primary navigation">
           {auth.isAdmin && <p className="nav-section nav-section-first">SOLUTION DISCOVERY</p>}
-          <button className="nav-item" onClick={() => setShowProfiles(true)}><Layers3 size={18} /><span>Inspection profiles</span></button>
-          <button className={`nav-item ${view === 'analyze' ? 'active' : ''}`} onClick={() => setView('analyze')}><Grid2X2 size={18} /><span>Analyze</span></button>
-          <button className={`nav-item subnav-item ${view === 'analyze-history' ? 'active' : ''}`} aria-label="Analyze history" onClick={() => setView('analyze-history')}><History size={15} /><span>History</span></button>
-          <button className={`nav-item ${view === 'pipeline' ? 'active' : ''}`} onClick={() => setView('pipeline')}><Workflow size={18} /><span>Pipeline Run</span></button>
-          <button className={`nav-item subnav-item ${view === 'pipeline-history' ? 'active' : ''}`} aria-label="Pipeline run history" onClick={() => setView('pipeline-history')}><History size={15} /><span>History</span></button>
+          <button className={`nav-item ${view === 'pipeline' ? 'active' : ''}`} onClick={() => setView('pipeline')}><Workflow size={18} /><span>New Inspection</span></button>
+          <button className={`nav-item subnav-item ${view === 'pipeline-history' ? 'active' : ''}`} aria-label="Inspection history" onClick={() => setView('pipeline-history')}><History size={15} /><span>Inspection History</span></button>
           {auth.isAdmin && <>
             <p className="nav-section">CLIENT PORTFOLIOS</p>
             <button className={`nav-item ${view === 'clients' ? 'active' : ''}`} onClick={() => setView('clients')}><Building2 size={18} /><span>Clients &amp; Projects</span></button>
+            <button className={`nav-item subnav-item ${view === 'portfolio-budgets' ? 'active' : ''}`} onClick={() => setView('portfolio-budgets')}><CircleDollarSign size={15} /><span>Budgets &amp; Usage</span></button>
+            <button className={`nav-item subnav-item ${view === 'project-templates' ? 'active' : ''}`} onClick={() => setView('project-templates')}><Layers3 size={15} /><span>Project Templates</span></button>
             <p className="nav-section">AI GOVERNANCE</p>
             <button className={`nav-item ${view === 'knowledge' ? 'active' : ''}`} onClick={() => setView('knowledge')}><BookOpenText size={18} /><span>Knowledge Base</span></button>
             <button className={`nav-item ${view === 'prompts' ? 'active' : ''}`} onClick={() => setView('prompts')}><FilePenLine size={18} /><span>Prompt Studio</span></button>
             <button className={`nav-item ${view === 'models' ? 'active' : ''}`} onClick={() => setView('models')}><Bot size={18} /><span>Models</span></button>
+            <button className={`nav-item ${view === 'evaluation' ? 'active' : ''}`} onClick={() => { setInspectionScope({ orgId: '', projectId: '' }); setView('evaluation'); }}><FlaskConical size={18} /><span>Evaluation Lab</span></button>
+            <button className={`nav-item subnav-item ${view === 'evaluation-history' ? 'active' : ''}`} onClick={() => setView('evaluation-history')}><History size={15} /><span>Evaluation History</span></button>
             <p className="nav-section">USAGE ANALYTICS</p>
             <button className={`nav-item ${view === 'usage' ? 'active' : ''}`} onClick={() => setView('usage')}><CircleDollarSign size={18} /><span>Usage &amp; Cost</span></button>
           </>}
@@ -189,7 +203,6 @@ export default function Home() {
       <section className="workspace">
         <header className="topbar">
           <div className="topbar-left">
-            <button className="mobile-menu" aria-label="Open profiles" onClick={() => setShowProfiles(true)}><Menu size={20} /></button>
             <div>
               <div className="eyebrow">{auth.isAdmin ? 'AIRIS ADMIN' : 'VISION GOVERNANCE'}</div>
               <div className="workspace-title">{auth.organizationName}</div>
@@ -233,7 +246,7 @@ export default function Home() {
                       <div><span>{file?.name}</span><small>{file ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : ''}</small></div>
                       <button className="primary-button" onClick={runInspection} disabled={phase === 'running'}>
                         {phase === 'running' ? <LoaderCircle className="spinner" size={18} /> : <ScanSearch size={18} />}
-                        {phase === 'running' ? 'Inspecting…' : 'Run inspection'}
+                        {phase === 'running' ? 'Analyzing and verifying…' : 'Run inspection'}
                       </button>
                     </div>
                   </>
@@ -264,18 +277,18 @@ export default function Home() {
             {result ? (
               <section className="results-section" aria-live="polite">
                 <div className="result-summary">
-                  <div className={result.summary.total ? 'summary-icon alert' : 'summary-icon'}>{result.summary.total ? <TriangleAlert size={22} /> : <Check size={22} />}</div>
-                  <div><p className="kicker">ANALYSIS COMPLETE</p><h2>{result.summary.total ? `${result.summary.total} finding${result.summary.total === 1 ? '' : 's'} require review` : 'No visible violations detected'}</h2><span>{result.model} · {(result.latency_ms / 1000).toFixed(1)} seconds</span></div>
+                  <div className={visibleFindings.length ? 'summary-icon alert' : 'summary-icon'}>{visibleFindings.length ? <TriangleAlert size={22} /> : <Check size={22} />}</div>
+                  <div><p className="kicker">ANALYSIS COMPLETE</p><h2>{visibleFindings.length ? `${visibleFindings.length} potential finding${visibleFindings.length === 1 ? '' : 's'} require review` : 'No supported visible violations detected'}</h2><span>{result.model} · {(result.latency_ms / 1000).toFixed(1)} seconds</span></div>
                   <button className="secondary-button compact" onClick={clearImage}><RotateCcw size={15} /> New inspection</button>
                 </div>
                 <div className="result-list">
-                  {result.findings.map((finding, index) => (
+                  {visibleFindings.map((finding, index) => (
                     <article className="result-finding" key={finding.id || index}>
                       <div className={`severity ${finding.severity?.toLowerCase()}`}>{finding.severity || 'review'}</div>
-                      <div className="finding-body"><div><span>{finding.category}</span><strong>{finding.confidence_score ? `${Math.round(finding.confidence_score)}% confidence` : `${finding.confidence} confidence`}</strong></div><p>{finding.description}</p>{finding.citations?.length ? <small>{finding.citations[0].section || finding.citations[0].source || 'Knowledge-base citation available'}</small> : null}</div>
+                      <div className="finding-body"><div><span>{finding.category}</span><strong>{finding.verification_status === 'confirmed' ? 'Confirmed by evidence review' : finding.verification_status === 'indeterminate' ? 'Could not verify — human review' : 'Unverified — human review'}</strong></div><p>{finding.description}</p>{finding.citations?.length ? <small>{finding.citations[0].section || finding.citations[0].source || 'Knowledge-base citation available'}</small> : null}</div>
                     </article>
                   ))}
-                  {!result.findings.length && <div className="clear-result"><ShieldCheck size={30} /><p>The selected profile found no visible issues in this image. Retain this result as evidence or begin another inspection.</p></div>}
+                  {!visibleFindings.length && <div className="clear-result"><ShieldCheck size={30} /><p>No supported visible issues remain after evidence review. Retain this result as evidence or begin another inspection.</p></div>}
                 </div>
               </section>
             ) : (
@@ -311,19 +324,22 @@ export default function Home() {
           </aside>
         </div>}
 
-        {view === 'analyze-history' && <div className="admin-page history-page"><header className="admin-heading"><div><p className="kicker">CLIENT ASSESSMENT · ANALYZE</p><h1>Previous analysis runs</h1><p>Review quick scans and compliance checks performed with sample images while defining a client’s visual-compliance needs.</p></div></header><section className="history-empty"><History size={30} /><h2>No analysis runs selected</h2><p>Choose a client project to review its previous sample-image analyses, findings, confidence and supporting evidence.</p><button className="primary-button" onClick={() => setView('analyze')}><Camera size={17} /> Run an analysis</button></section></div>}
+        {view === 'pipeline-history' && <InspectionHistory auth={auth} purpose="operational" initialOrgId={inspectionScope.orgId} initialProjectId={inspectionScope.projectId} />}
+        {view === 'evaluation-history' && auth.isAdmin && <InspectionHistory auth={auth} purpose="evaluation" initialOrgId={inspectionScope.orgId} initialProjectId={inspectionScope.projectId} />}
 
-        {view === 'pipeline-history' && <div className="admin-page history-page"><header className="admin-heading"><div><p className="kicker">CLIENT ASSESSMENT · PIPELINE</p><h1>Previous pipeline runs</h1><p>Review five-stage test runs separately from quick analyses, including stage status, model provenance, latency and cost.</p></div></header><section className="history-empty"><History size={30} /><h2>No pipeline runs selected</h2><p>Choose a client project to review its previous pipeline tests and the execution evidence produced at each stage.</p><button className="primary-button" onClick={() => setView('pipeline')}><Workflow size={17} /> Run the pipeline</button></section></div>}
+        {view === 'pipeline' && <PipelineRun auth={auth} purpose="operational" initialOrgId={inspectionScope.orgId} initialProjectId={inspectionScope.projectId} onHistory={() => setView('pipeline-history')} />}
+        {view === 'evaluation' && auth.isAdmin && <PipelineRun auth={auth} purpose="evaluation" initialOrgId={inspectionScope.orgId} initialProjectId={inspectionScope.projectId} onHistory={() => setView('evaluation-history')} />}
 
-        {view === 'pipeline' && <PipelineRun auth={auth} />}
-
-        {adminViews.includes(view as AdminView) && auth.isAdmin && <AdminConsole view={view as AdminView} organizationName={auth.organizationName} />}
+        {view === 'knowledge' && auth.isAdmin && <KnowledgeBasePage organizationName={auth.organizationName} />}
+        {view === 'clients' && auth.isAdmin && <ClientManagement auth={auth} onInspect={(orgId, projectId) => { setInspectionScope({ orgId, projectId }); setView('pipeline'); }} onHistory={(orgId, projectId) => { setInspectionScope({ orgId, projectId }); setView('pipeline-history'); }} />}
+        {view === 'portfolio-budgets' && auth.isAdmin && <PortfolioBudgets />}
+        {view === 'project-templates' && auth.isAdmin && <ProjectTemplates />}
+        {view !== 'knowledge' && !(['clients', 'portfolio-budgets', 'project-templates'] as AppView[]).includes(view) && (['prompts', 'models', 'usage'] as AppView[]).includes(view) && auth.isAdmin && <AdminConsole view={view as AdminView} organizationName={auth.organizationName} />}
 
         <nav className="mobile-tabs" aria-label="Mobile navigation">
-          <button className={view === 'analyze' ? 'active' : ''} onClick={() => setView('analyze')}><Grid2X2 size={19} /><span>Home</span></button>
-          <button className={view === 'pipeline' ? 'active' : ''} onClick={() => setView('pipeline')}><Workflow size={19} /><span>Pipeline</span></button>
-          <button className={view === 'analyze-history' || view === 'pipeline-history' ? 'active' : ''} onClick={() => setView(view === 'pipeline' || view === 'pipeline-history' ? 'pipeline-history' : 'analyze-history')}><History size={19} /><span>History</span></button>
-          {auth.isAdmin ? <button className={adminViews.includes(view as AdminView) ? 'active' : ''} onClick={() => setView('clients')}><Building2 size={19} /><span>Admin</span></button> : <button onClick={() => setShowProfiles(true)}><Layers3 size={19} /><span>Profiles</span></button>}
+          <button className={view === 'pipeline' ? 'active' : ''} onClick={() => setView('pipeline')}><Workflow size={19} /><span>Inspect</span></button>
+          <button className={view === 'pipeline-history' ? 'active' : ''} onClick={() => setView('pipeline-history')}><History size={19} /><span>History</span></button>
+          {auth.isAdmin && <button className={adminViews.includes(view as AdminView) || view === 'evaluation' || view === 'evaluation-history' ? 'active' : ''} onClick={() => setView('clients')}><Building2 size={19} /><span>Admin</span></button>}
         </nav>
       </section>
 

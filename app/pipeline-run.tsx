@@ -2,6 +2,7 @@
 
 import {
   AlertOctagon,
+  Building2,
   Check,
   ChevronDown,
   CircleDashed,
@@ -19,6 +20,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { API_URL } from './api-config';
 import { getClerkToken, type AirisAuthState } from './clerk-auth';
+import { RecentRuns } from './recent-runs';
 
 type Through = 'ingest' | 'route' | 'detect' | 'inspect' | 'escalate';
 type RunStatus = 'ok' | 'skipped' | 'failed' | 'not_built';
@@ -72,8 +74,15 @@ type ComplianceFinding = {
   severity: 'high' | 'medium' | 'low';
   confidence: string;
   confidence_score: number;
+  visual_confidence_score?: number;
+  retrieval_score?: number | null;
+  claim_code?: string;
+  verification_status?: 'unverified' | 'confirmed' | 'refuted' | 'indeterminate';
+  verification_reason?: string;
+  evidence_quality?: string;
+  display_status?: 'actionable' | 'needs_human_review' | 'hidden_refuted';
   bbox: [number, number, number, number] | null;
-  citations: Citation[];
+  citations?: Citation[];
   escalation: {
     verdict: string;
     reason: string;
@@ -97,16 +106,38 @@ type PipelineRunOut = {
   stage0: { derivative?: string; [key: string]: unknown } | null;
   stage1: Stage1Response | null;
   findings: ComplianceResponse | null;
+  purpose?: InspectionPurpose;
+  profile?: InspectionProfile;
+  context_manifest?: Record<string, unknown>;
 };
 
-type Props = { auth: AirisAuthState };
+export type InspectionPurpose = 'operational' | 'evaluation';
+export type InspectionProfile = 'visual_safety' | 'regulatory_compliance';
+export type InspectionProject = {
+  project_id: string; org_id: string; name: string; status: string;
+  effective_status?: string; project_type?: string;
+  domain?: string; country_code?: string; state_code?: string; county?: string;
+  municipality?: string; industry?: string; activity_tags?: string[];
+  site_address?: string; governing_authorities?: string[]; required_ppe?: string[];
+  effective_on?: string; project_kb_id?: string;
+  inspection_profiles?: InspectionProfile[];
+  budget?: import('./portfolio-types').Budget | null;
+};
+type Client = { org_id: string; name: string; status: string };
+type Props = {
+  auth: AirisAuthState;
+  purpose?: InspectionPurpose;
+  initialOrgId?: string;
+  initialProjectId?: string;
+  onHistory?: () => void;
+};
 
 const stageDefinitions = [
   { stage: 'ingest', number: 0, title: 'Ingest', description: 'Decode, correct orientation, hash and read capture metadata.' },
   { stage: 'route', number: 1, title: 'Route', description: 'Identify the site domain and narrow regulatory retrieval.' },
   { stage: 'detect', number: 2, title: 'Detect', description: 'Ground inspection with object and PPE counts.' },
-  { stage: 'inspect', number: 3, title: 'Inspect', description: 'Reason over visible evidence and retrieved regulations.' },
-  { stage: 'escalate', number: 4, title: 'Escalate', description: 'Request a second opinion for uncertain findings.' },
+  { stage: 'inspect', number: 3, title: 'Inspect', description: 'Reason over visible evidence using the selected inspection profile.' },
+  { stage: 'escalate', number: 4, title: 'Verify', description: 'Independently check each selected claim against original-resolution evidence.' },
 ] as const;
 
 const throughOptions: Array<{ value: Through; label: string; cost: string }> = [
@@ -157,7 +188,7 @@ function responseMessage(payload: unknown, fallback: string) {
 function failedImpact(stage: string) {
   if (stage === 'route') return 'Regulatory retrieval was widened instead of narrowed.';
   if (stage === 'detect') return 'Findings continued without object-detection grounding.';
-  if (stage === 'escalate') return 'No second opinion was available; primary findings remain visible.';
+  if (stage === 'escalate') return 'Independent verification was unavailable; findings remain marked for human review.';
   return 'This required stage failed, so no complete inspection result is available.';
 }
 
@@ -169,21 +200,80 @@ function StageIcon({ status }: { status: RunStatus | ConfigStatus | 'waiting' })
   return <Workflow size={18} />;
 }
 
-export function PipelineRun({ auth }: Props) {
+export function PipelineRun({ auth, purpose = 'operational', initialOrgId = '', initialProjectId = '', onHistory }: Props) {
   const [configured, setConfigured] = useState<StageInfo[]>([]);
   const [configError, setConfigError] = useState<string | null>(null);
-  const [through, setThrough] = useState<Through>('inspect');
+  const [through, setThrough] = useState<Through>('escalate');
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [running, setRunning] = useState(false);
   const [run, setRun] = useState<PipelineRunOut | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showRefuted, setShowRefuted] = useState(true);
+  const [showRefuted, setShowRefuted] = useState(false);
   const [activeFinding, setActiveFinding] = useState<string | null>(null);
+  const [profile, setProfile] = useState<InspectionProfile>('regulatory_compliance');
+  const [clients, setClients] = useState<Client[]>([]);
+  const [projects, setProjects] = useState<InspectionProject[]>([]);
+  const [selectedOrg, setSelectedOrg] = useState(initialOrgId || auth.organizationId || '');
+  const [selectedProject, setSelectedProject] = useState(initialProjectId);
+  const [scopeLoading, setScopeLoading] = useState(false);
+  const [historyRefresh, setHistoryRefresh] = useState(0);
   const input = useRef<HTMLInputElement>(null);
 
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
+
+  useEffect(() => {
+    setSelectedOrg(initialOrgId || auth.organizationId || '');
+    setSelectedProject(initialProjectId);
+  }, [auth.organizationId, initialOrgId, initialProjectId]);
+
+  useEffect(() => {
+    if (!auth.signedIn) return;
+    let active = true;
+    void (async () => {
+      setScopeLoading(true);
+      try {
+        const token = await getClerkToken(true);
+        if (!token) throw new Error('Sign in to load inspection projects.');
+        if (auth.isAdmin) {
+          const response = await fetch(`${API_URL}/v1/admin/clients`, { headers: { Authorization: `Bearer ${token}` } });
+          const payload = await response.json() as { clients?: Client[]; detail?: string };
+          if (!response.ok) throw new Error(payload.detail || 'Could not load clients.');
+          if (active) setClients((payload.clients || []).filter((client) => client.status === 'active'));
+        }
+      } catch (caught) {
+        if (active) setError(caught instanceof Error ? caught.message : 'Could not load inspection scope.');
+      } finally { if (active) setScopeLoading(false); }
+    })();
+    return () => { active = false; };
+  }, [auth.isAdmin, auth.signedIn]);
+
+  useEffect(() => {
+    if (!auth.signedIn || !selectedOrg) { setProjects([]); return; }
+    let active = true;
+    void (async () => {
+      setScopeLoading(true);
+      try {
+        const token = await getClerkToken(true);
+        if (!token) throw new Error('Sign in to load projects.');
+        const endpoint = auth.isAdmin
+          ? `/v1/admin/clients/${encodeURIComponent(selectedOrg)}/projects`
+          : '/v1/projects';
+        const response = await fetch(`${API_URL}${endpoint}`, { headers: { Authorization: `Bearer ${token}` } });
+        const payload = await response.json() as { projects?: InspectionProject[]; detail?: string };
+        if (!response.ok) throw new Error(payload.detail || 'Could not load projects.');
+        const available = (payload.projects || []).filter((project) => project.status === 'active');
+        if (active) {
+          setProjects(available);
+          setSelectedProject((current) => available.some((project) => project.project_id === current) ? current : '');
+        }
+      } catch (caught) {
+        if (active) setError(caught instanceof Error ? caught.message : 'Could not load projects.');
+      } finally { if (active) setScopeLoading(false); }
+    })();
+    return () => { active = false; };
+  }, [auth.isAdmin, auth.signedIn, selectedOrg]);
 
   useEffect(() => {
     if (!auth.signedIn) return;
@@ -193,7 +283,8 @@ export function PipelineRun({ auth }: Props) {
         const token = await getClerkToken();
         if (!token) throw new Error('Sign in to load the pipeline configuration.');
         const params = new URLSearchParams();
-        if (auth.organizationId) params.set('org_id', auth.organizationId);
+        if (selectedOrg) params.set('org_id', selectedOrg);
+        if (selectedProject) params.set('project_id', selectedProject);
         const suffix = params.size ? `?${params}` : '';
         const response = await fetch(`${API_URL}/v1/pipeline/stages${suffix}`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -212,7 +303,14 @@ export function PipelineRun({ auth }: Props) {
       }
     })();
     return () => { active = false; };
-  }, [auth.organizationId, auth.signedIn]);
+  }, [auth.signedIn, selectedOrg, selectedProject]);
+
+  const project = useMemo(() => projects.find((item) => item.project_id === selectedProject), [projects, selectedProject]);
+  useEffect(() => {
+    if (project?.inspection_profiles?.length && !project.inspection_profiles.includes(profile)) {
+      setProfile(project.inspection_profiles[0]);
+    }
+  }, [profile, project]);
 
   const timeline = useMemo(() => stageDefinitions.map((definition) => {
     const record = run?.stages.find((item) => item.number === definition.number);
@@ -222,10 +320,13 @@ export function PipelineRun({ auth }: Props) {
 
   const findings = useMemo(() => {
     const all = run?.findings?.findings ?? [];
-    return showRefuted ? all : all.filter((finding) => finding.escalation?.verdict !== 'refuted');
+    return showRefuted ? all : all.filter((finding) =>
+      finding.display_status !== 'hidden_refuted' &&
+      finding.verification_status !== 'refuted' &&
+      finding.escalation?.verdict !== 'refuted');
   }, [run, showRefuted]);
 
-  const refutedCount = run?.findings?.findings.filter((finding) => finding.escalation?.verdict === 'refuted').length ?? 0;
+  const refutedCount = run?.findings?.findings.filter((finding) => finding.verification_status === 'refuted' || finding.escalation?.verdict === 'refuted').length ?? 0;
   const stageCost = run?.stages.reduce((sum, stage) => sum + (stage.cost_usd || 0), 0) ?? 0;
   const costMatches = run ? Math.abs(stageCost - run.cost.total_usd) < 0.0000005 : true;
   const selectedCost = throughOptions.find((item) => item.value === through)?.cost;
@@ -264,23 +365,27 @@ export function PipelineRun({ auth }: Props) {
     setRun(null);
     try {
       const token = await getClerkToken(true);
-      if (!token) throw new Error('Sign in with your Trominos account before running the pipeline.');
+      if (!token) throw new Error('Sign in with your Trominos account before starting an inspection.');
       const body = new FormData();
       body.append('image', file);
-      if (auth.organizationId) body.append('org_id', auth.organizationId);
-      const response = await fetch(`${API_URL}/v1/pipeline/run?through=${through}&include_derivative=true`, {
+      if (selectedOrg) body.append('org_id', selectedOrg);
+      if (selectedProject) body.append('project_id', selectedProject);
+      const params = new URLSearchParams({ through, include_derivative: 'true', purpose, profile });
+      const response = await fetch(`${API_URL}/v1/pipeline/run?${params}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body,
       });
       const payload: unknown = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(responseMessage(payload, `Pipeline run failed (${response.status}).`));
+      if (!response.ok) throw new Error(responseMessage(payload, `Inspection failed (${response.status}).`));
       if (!isPipelineRunOut(payload)) {
         throw new Error('The backend returned its legacy two-stage pipeline response. Deploy the five-stage PipelineRunOut contract before this screen can display a valid run.');
       }
       setRun(payload);
+      setHistoryRefresh((value) => value + 1);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'The pipeline run could not be completed.');
+      setError(caught instanceof Error ? caught.message : 'The inspection could not be completed.');
+      setHistoryRefresh((value) => value + 1);
     } finally {
       setRunning(false);
     }
@@ -291,11 +396,30 @@ export function PipelineRun({ auth }: Props) {
       <header className="pipeline-heading">
         <div>
           <p className="kicker">EXPLAINABLE EXECUTION</p>
-          <h1>Pipeline run</h1>
-          <p>Follow one work-site image through preparation, routing, grounding, compliance inspection and escalation.</p>
+          <h1>New inspection</h1>
+          <p>Inspect one work-site image using preparation, contextual rules, compliance analysis and independent evidence review.</p>
         </div>
         <div className="pipeline-heading-badge"><Workflow size={18} /><span><strong>Five-stage trace</strong><small>Nothing hidden</small></span></div>
       </header>
+
+      <section className="inspection-scope-card" aria-label="Inspection scope">
+        <div className="pipeline-card-title"><div><span>{purpose === 'evaluation' ? 'EVALUATION SCOPE' : 'INSPECTION SCOPE'}</span><strong>Who and what this run represents</strong></div><Building2 size={20} /></div>
+        <div className="inspection-scope-grid">
+          {auth.isAdmin && <label><span>Client</span><select value={selectedOrg} onChange={(event) => { setSelectedOrg(event.target.value); setSelectedProject(''); }}>
+            <option value="">{purpose === 'evaluation' ? 'System sandbox' : 'Select a client'}</option>
+            {clients.map((client) => <option value={client.org_id} key={client.org_id}>{client.name}</option>)}
+          </select></label>}
+          <label><span>Project</span><select value={selectedProject} disabled={!selectedOrg || scopeLoading} onChange={(event) => setSelectedProject(event.target.value)}>
+            <option value="">{purpose === 'evaluation' && !selectedOrg ? 'No project — sandbox' : 'Select a project'}</option>
+            {projects.map((item) => <option value={item.project_id} key={item.project_id}>{item.name}</option>)}
+          </select></label>
+          <label><span>Inspection profile</span><select value={profile} onChange={(event) => setProfile(event.target.value as InspectionProfile)}>
+            <option value="visual_safety" disabled={Boolean(project?.inspection_profiles?.length && !project.inspection_profiles.includes('visual_safety'))}>Visual Safety Scan</option>
+            <option value="regulatory_compliance" disabled={Boolean(project?.inspection_profiles?.length && !project.inspection_profiles.includes('regulatory_compliance'))}>Regulatory Compliance</option>
+          </select></label>
+        </div>
+        {project ? <div className="inspection-context-preview"><strong>{project.name}</strong><span>{[project.municipality, project.state_code, project.country_code, project.industry, project.domain].filter(Boolean).join(' · ') || 'Project context needs configuration'}</span>{project.activity_tags?.length ? <small>{project.activity_tags.join(' · ')}</small> : null}</div> : purpose === 'evaluation' && !selectedOrg ? <div className="inspection-context-preview sandbox"><strong>System sandbox</strong><span>No client KB overlay or project history attribution</span></div> : <div className="inspection-context-warning"><TriangleAlert size={16} /> Select a client project before starting an operational inspection.</div>}
+      </section>
 
       <section className="pipeline-timeline-card" aria-label="Pipeline stages">
         <div className="pipeline-card-title">
@@ -331,7 +455,7 @@ export function PipelineRun({ auth }: Props) {
 
       <div className="pipeline-work-grid">
         <section className="pipeline-upload-card">
-          <div className="pipeline-card-title"><div><span>NEW RUN</span><strong>Inspection source</strong></div></div>
+          <div className="pipeline-card-title"><div><span>NEW INSPECTION</span><strong>Inspection source</strong></div></div>
           <div
             className={`pipeline-dropzone ${dragging ? 'dragging' : ''} ${preview ? 'has-file' : ''}`}
             onDragEnter={(event) => { event.preventDefault(); setDragging(true); }}
@@ -361,9 +485,9 @@ export function PipelineRun({ auth }: Props) {
           </select>
           <div className={`pipeline-cost-note cost-${through}`}><CircleDashed size={16} /><span>{selectedCost}</span></div>
           {error && <div className="pipeline-error" role="alert"><TriangleAlert size={18} /><span>{error}</span></div>}
-          <button className="primary-button pipeline-run-button" disabled={!file || running || !auth.signedIn} onClick={runPipeline}>
+          <button className="primary-button pipeline-run-button" disabled={!file || running || !auth.signedIn || (purpose === 'operational' && !selectedProject)} onClick={runPipeline}>
             {running ? <LoaderCircle className="spinner" size={18} /> : <Workflow size={18} />}
-            {running ? 'Running pipeline…' : 'Run pipeline'}
+            {running ? 'Running inspection…' : 'Start inspection'}
           </button>
           {!auth.signedIn && <p className="pipeline-signin-note">Sign in to run an inspection.</p>}
         </section>
@@ -393,7 +517,7 @@ export function PipelineRun({ auth }: Props) {
 
         {run.findings && <section className="pipeline-findings-section">
           <div className="pipeline-findings-heading">
-            <div><p className="kicker">COMPLIANCE EVIDENCE</p><h2>Findings</h2><p>Boxes are drawn only on the orientation-corrected derivative returned by ingest.</p></div>
+            <div><p className="kicker">{profile === 'visual_safety' ? 'VISUAL SAFETY EVIDENCE' : 'REGULATORY COMPLIANCE EVIDENCE'}</p><h2>Findings</h2><p>Boxes are drawn only on the orientation-corrected derivative returned by ingest.</p></div>
             {refutedCount > 0 && <label className="refuted-toggle"><input type="checkbox" checked={showRefuted} onChange={(event) => setShowRefuted(event.target.checked)} /><span>Show refuted ({refutedCount})</span></label>}
           </div>
           {!run.findings.parse_ok && <div className="pipeline-parse-warning"><AlertOctagon size={18} /><span><strong>Model output could not be parsed.</strong> This is not the same as finding no violations.</span></div>}
@@ -415,7 +539,7 @@ export function PipelineRun({ auth }: Props) {
             </div>
             <div className="pipeline-finding-list">
               {findings.map((finding, index) => {
-                const refuted = finding.escalation?.verdict === 'refuted';
+                const refuted = finding.verification_status === 'refuted' || finding.escalation?.verdict === 'refuted';
                 return <article
                   className={`pipeline-finding ${refuted ? 'is-refuted' : ''} ${activeFinding === finding.id ? 'active' : ''}`}
                   key={finding.id}
@@ -424,9 +548,9 @@ export function PipelineRun({ auth }: Props) {
                   onClick={() => setActiveFinding(finding.id)}
                 >
                   <header><span className={`finding-index severity-${finding.severity}`}>{index + 1}</span><div><small>{finding.category}</small><strong>{finding.description}</strong></div><em className={`severity ${finding.severity}`}>{finding.severity}</em></header>
-                  <div className="finding-confidence"><span><strong>{finding.confidence_score.toFixed(0)}%</strong> blended confidence</span><span><strong>{finding.confidence}</strong> model label</span>{!finding.bbox && <span><strong>No box</strong> absence finding</span>}</div>
-                  {refuted && <div className="refuted-verdict"><X size={15} /><span><strong>Refuted by escalation</strong>{finding.escalation?.reason}</span></div>}
-                  {finding.citations.map((citation, citationIndex) => {
+                  <div className="finding-confidence"><span><strong>{finding.verification_status === 'confirmed' ? 'Confirmed' : finding.verification_status === 'indeterminate' ? 'Needs review' : finding.verification_status === 'refuted' ? 'Refuted' : 'Unverified'}</strong> evidence status</span>{typeof finding.retrieval_score === 'number' && <span><strong>{Math.round(finding.retrieval_score * 100)}%</strong> source match</span>}{!finding.bbox && <span><strong>No box</strong> scene-level claim</span>}</div>
+                  {refuted && <div className="refuted-verdict"><X size={15} /><span><strong>Refuted by evidence review</strong>{finding.verification_reason || finding.escalation?.reason}</span></div>}
+                  {(finding.citations || []).map((citation, citationIndex) => {
                     const unidentified = !citation.section || citation.section.toLowerCase() === 'see excerpt';
                     return <div className="finding-citation" key={`${finding.id}-${citationIndex}`}>
                       <span>{unidentified ? 'Section unidentified' : `Section ${citation.section}`}{citation.kb ? ` · ${citation.kb}` : ''}</span>
@@ -443,7 +567,8 @@ export function PipelineRun({ auth }: Props) {
         </section>}
       </>}
 
-      {run && <button className="secondary-button pipeline-new-run" onClick={reset}><RotateCcw size={16} /> New pipeline run</button>}
+      {run && <button className="secondary-button pipeline-new-run" onClick={reset}><RotateCcw size={16} /> New inspection</button>}
+      <RecentRuns auth={auth} purpose={purpose} orgId={selectedOrg} projectId={selectedProject} profile={profile} refreshKey={historyRefresh} onViewAll={onHistory} />
     </div>
   );
 }
