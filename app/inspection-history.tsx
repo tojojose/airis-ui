@@ -4,6 +4,8 @@ import { Building2, ChevronDown, Clock3, FileSearch, FlaskConical, LoaderCircle,
 import { useEffect, useState } from 'react';
 import { API_URL } from './api-config';
 import { getClerkToken, type AirisAuthState } from './clerk-auth';
+import { HistoryEvidenceImage } from './history-evidence';
+import { profileLabel } from './inspection-profiles';
 import type { InspectionProject, InspectionPurpose } from './pipeline-run';
 import type { RunSummary } from './recent-runs';
 
@@ -29,6 +31,8 @@ type DetailedResult = {
   models?: Record<string, unknown>;
   prompt_version?: string;
   error?: string;
+  s3_keys?: Record<string, string>;
+  evidence_image?: { key?: string; width?: number; height?: number } | null;
 };
 
 function storedFindings(detail: DetailedResult | null): StoredFinding[] {
@@ -50,6 +54,8 @@ export function InspectionHistory({ auth, purpose, initialOrgId = '', initialPro
   const [detail, setDetail] = useState<DetailedResult | null>(null);
   const [detailError, setDetailError] = useState('');
   const [detailLoading, setDetailLoading] = useState(false);
+  const [evidenceUrl, setEvidenceUrl] = useState('');
+  const [evidenceExpected, setEvidenceExpected] = useState(false);
 
   useEffect(() => { setOrgId(initialOrgId || auth.organizationId || ''); setProjectId(initialProjectId); }, [auth.organizationId, initialOrgId, initialProjectId]);
 
@@ -104,8 +110,8 @@ export function InspectionHistory({ auth, purpose, initialOrgId = '', initialPro
   }, [auth.isAdmin, auth.signedIn, orgId, profile, projectId, purpose, refresh]);
 
   async function toggleDetail(result: RunSummary & { s3_keys?: Record<string, string> }) {
-    if (openId === result.request_id) { setOpenId(''); setDetail(null); return; }
-    setOpenId(result.request_id); setDetail(null); setDetailError('');
+    if (openId === result.request_id) { setOpenId(''); setDetail(null); setEvidenceUrl(''); return; }
+    setOpenId(result.request_id); setDetail(null); setDetailError(''); setEvidenceUrl(''); setEvidenceExpected(false);
     const key = result.s3_keys?.result;
     if (!key) { setDetailError(result.error || 'The summary is available, but no detailed result artifact was stored.'); return; }
     setDetailLoading(true);
@@ -116,7 +122,15 @@ export function InspectionHistory({ auth, purpose, initialOrgId = '', initialPro
       if (!response.ok || !payload.url) throw new Error(payload.detail || 'Could not open the stored result.');
       const artifact = await fetch(payload.url);
       if (!artifact.ok) throw new Error(`Stored result could not be downloaded (${artifact.status}).`);
-      setDetail(await artifact.json() as DetailedResult);
+      const storedDetail = await artifact.json() as DetailedResult;
+      setDetail(storedDetail);
+      const imageKey = storedDetail.evidence_image?.key || storedDetail.s3_keys?.image || result.s3_keys?.image || '';
+      setEvidenceExpected(Boolean(imageKey));
+      if (imageKey) {
+        const imageResponse = await fetch(`${API_URL}/v1/results/presign?key=${encodeURIComponent(imageKey)}`, { headers: { Authorization: `Bearer ${token}` } });
+        const imagePayload = await imageResponse.json() as { url?: string; detail?: string };
+        if (imageResponse.ok && imagePayload.url) setEvidenceUrl(imagePayload.url);
+      }
     } catch (caught) { setDetailError(caught instanceof Error ? caught.message : 'Could not load result details.'); }
     finally { setDetailLoading(false); }
   }
@@ -126,7 +140,7 @@ export function InspectionHistory({ auth, purpose, initialOrgId = '', initialPro
     <section className="history-filter-card">
       {auth.isAdmin && <label><span>Client</span><select value={orgId} onChange={(event) => { setOrgId(event.target.value); setProjectId(''); }}><option value="">{purpose === 'evaluation' ? 'System sandbox' : 'Select client'}</option>{clients.map((client) => <option key={client.org_id} value={client.org_id}>{client.name}{client.status !== 'active' ? ` (${client.status})` : ''}</option>)}</select></label>}
       <label><span>Project</span><select disabled={!orgId} value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="">All projects</option>{projects.map((project) => <option key={project.project_id} value={project.project_id}>{project.name}{project.status !== 'active' ? ` (${project.status})` : ''}</option>)}</select></label>
-      <label><span>Profile</span><select value={profile} onChange={(event) => setProfile(event.target.value)}><option value="">All profiles</option><option value="visual_safety">Visual Safety Scan</option><option value="regulatory_compliance">Regulatory Compliance</option></select></label>
+      <label><span>Profile</span><select value={profile} onChange={(event) => setProfile(event.target.value)}><option value="">All profiles</option><option value="visual_safety">General Safety Rules</option><option value="regulatory_compliance">Regulatory Compliance</option></select></label>
     </section>
     {loading ? <div className="history-state"><LoaderCircle className="spinner" size={28} /> Loading history…</div>
       : error ? <div className="history-state error"><TriangleAlert size={24} />{error}</div>
@@ -136,7 +150,7 @@ export function InspectionHistory({ auth, purpose, initialOrgId = '', initialPro
         return <article className={`history-run-card run-${result.status || 'completed'}`} key={result.request_id}>
           <button className="history-run-summary" onClick={() => void toggleDetail(stored)}>
             <div className="history-result-icon">{purpose === 'evaluation' ? <FlaskConical size={19} /> : <ShieldCheck size={19} />}</div>
-            <div><strong>{result.context_manifest?.project_name || (purpose === 'evaluation' && !orgId ? 'System sandbox' : result.request_id)}</strong><span>{result.profile === 'visual_safety' ? 'Visual Safety Scan' : 'Regulatory Compliance'} · {result.summary?.ran_through || result.kind}</span><small><Clock3 size={12} /> {result.timestamp || 'Timestamp unavailable'} · {result.summary?.total || 0} findings · ${(result.usage?.est_cost_usd || 0).toFixed(4)}</small></div>
+            <div><strong>{result.context_manifest?.project_name || (purpose === 'evaluation' && !orgId ? 'System sandbox' : result.request_id)}</strong><span>{profileLabel(result.profile)} · {result.summary?.ran_through || result.kind}</span><small><Clock3 size={12} /> {result.timestamp || 'Timestamp unavailable'} · {result.summary?.total || 0} findings · ${(result.usage?.est_cost_usd || 0).toFixed(4)}</small></div>
             <em>{result.status || 'completed'}</em><ChevronDown className={openId === result.request_id ? 'open' : ''} size={17} />
           </button>
           {openId === result.request_id && <div className="history-run-detail">
@@ -145,6 +159,7 @@ export function InspectionHistory({ auth, purpose, initialOrgId = '', initialPro
               : detail ? <>
                 {(detail.model || detail.prompt_version || detail.latency_ms !== undefined) && <div className="history-result-metadata"><span><strong>Model</strong>{detail.model || 'Recorded by pipeline stage'}</span><span><strong>Prompt</strong>{detail.prompt_version || 'Contextual pipeline prompt'}</span><span><strong>Latency</strong>{detail.latency_ms !== undefined ? `${detail.latency_ms} ms` : 'Unavailable'}</span></div>}
                 {detail.stages?.length ? <div className="history-stage-strip">{detail.stages.map((stage) => <span key={stage.stage}>{stage.stage}: <strong>{stage.status}</strong>{stage.latency_ms !== undefined ? ` · ${stage.latency_ms} ms` : ''}</span>)}</div> : null}
+                <HistoryEvidenceImage imageUrl={evidenceUrl} findings={findings} imageExpected={evidenceExpected} />
                 {findings.length ? <div className="history-finding-list">{findings.map((finding, index) => <div key={finding.id || index}><em>{finding.severity || 'review'}</em><span><strong>{finding.category || 'Finding'}</strong>{finding.description}<small>{finding.verification_status ? `Evidence: ${finding.verification_status.replaceAll('_', ' ')}` : 'Human review required'}{typeof finding.confidence_score === 'number' ? ` · ${Math.round(finding.confidence_score)}% confidence` : typeof finding.visual_confidence_score === 'number' ? ` · ${Math.round(finding.visual_confidence_score)}% visual confidence` : ''}{finding.bbox ? ' · Located in image' : ''}</small>{finding.verification_reason && <small>{finding.verification_reason}</small>}{finding.citations?.map((citation, citationIndex) => <cite key={citationIndex}><strong>{citation.section || citation.source_doc || 'Supporting source'}</strong>{citation.excerpt || ''}</cite>)}</span></div>)}</div> : <div className="recent-runs-state"><ShieldCheck size={20} />No findings were stored for this run.</div>}
               </> : null}
           </div>}

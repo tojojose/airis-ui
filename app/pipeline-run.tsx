@@ -20,6 +20,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { API_URL } from './api-config';
 import { getClerkToken, type AirisAuthState } from './clerk-auth';
+import { INSPECTION_PROFILES, profileInfo } from './inspection-profiles';
 import { RecentRuns } from './recent-runs';
 
 type Through = 'ingest' | 'route' | 'detect' | 'inspect' | 'escalate';
@@ -121,6 +122,7 @@ export type InspectionProject = {
   site_address?: string; governing_authorities?: string[]; required_ppe?: string[];
   effective_on?: string; project_kb_id?: string;
   inspection_profiles?: InspectionProfile[];
+  default_inspection_profile?: InspectionProfile;
   budget?: import('./portfolio-types').Budget | null;
 };
 type Client = { org_id: string; name: string; status: string };
@@ -307,10 +309,12 @@ export function PipelineRun({ auth, purpose = 'operational', initialOrgId = '', 
 
   const project = useMemo(() => projects.find((item) => item.project_id === selectedProject), [projects, selectedProject]);
   useEffect(() => {
-    if (project?.inspection_profiles?.length && !project.inspection_profiles.includes(profile)) {
-      setProfile(project.inspection_profiles[0]);
-    }
-  }, [profile, project]);
+    if (!project) return;
+    const enabled: InspectionProfile[] = project.inspection_profiles?.length
+      ? project.inspection_profiles : ['visual_safety', 'regulatory_compliance'];
+    const preferred = project.default_inspection_profile;
+    setProfile(preferred && enabled.includes(preferred) ? preferred : enabled[0]);
+  }, [project?.project_id, project?.default_inspection_profile, project?.inspection_profiles]);
 
   const timeline = useMemo(() => stageDefinitions.map((definition) => {
     const record = run?.stages.find((item) => item.number === definition.number);
@@ -413,10 +417,20 @@ export function PipelineRun({ auth, purpose = 'operational', initialOrgId = '', 
             <option value="">{purpose === 'evaluation' && !selectedOrg ? 'No project — sandbox' : 'Select a project'}</option>
             {projects.map((item) => <option value={item.project_id} key={item.project_id}>{item.name}</option>)}
           </select></label>
-          <label><span>Inspection profile</span><select value={profile} onChange={(event) => setProfile(event.target.value as InspectionProfile)}>
-            <option value="visual_safety" disabled={Boolean(project?.inspection_profiles?.length && !project.inspection_profiles.includes('visual_safety'))}>Visual Safety Scan</option>
-            <option value="regulatory_compliance" disabled={Boolean(project?.inspection_profiles?.length && !project.inspection_profiles.includes('regulatory_compliance'))}>Regulatory Compliance</option>
-          </select></label>
+        </div>
+        <div className="inspection-profile-picker">
+          <div className="inspection-profile-heading"><span>INSPECTION PROFILE</span><strong>Choose how this image should be reviewed</strong></div>
+          <div className="inspection-profile-options">{INSPECTION_PROFILES.map((option) => {
+            const enabled = !project?.inspection_profiles?.length || project.inspection_profiles.includes(option.id);
+            const selected = profile === option.id;
+            const isDefault = project?.default_inspection_profile === option.id;
+            return <button type="button" key={option.id} disabled={!enabled} className={selected ? 'selected' : ''} onClick={() => setProfile(option.id)} aria-pressed={selected}>
+              <span className="profile-choice-radio">{selected ? '✓' : ''}</span>
+              <span><strong>{option.name}</strong><small>{option.description}</small><em>{option.context}</em></span>
+              {isDefault && <b>PROJECT DEFAULT</b>}
+            </button>;
+          })}</div>
+          {profile === 'regulatory_compliance' && project && (!project.country_code || !project.industry) && <div className="inspection-profile-advisory"><TriangleAlert size={15} /><span><strong>Project context is incomplete.</strong> Add country and industry information to improve regulatory source selection.</span></div>}
         </div>
         {project ? <div className="inspection-context-preview"><strong>{project.name}</strong><span>{[project.municipality, project.state_code, project.country_code, project.industry, project.domain].filter(Boolean).join(' · ') || 'Project context needs configuration'}</span>{project.activity_tags?.length ? <small>{project.activity_tags.join(' · ')}</small> : null}</div> : purpose === 'evaluation' && !selectedOrg ? <div className="inspection-context-preview sandbox"><strong>System sandbox</strong><span>No client KB overlay or project history attribution</span></div> : <div className="inspection-context-warning"><TriangleAlert size={16} /> Select a client project before starting an operational inspection.</div>}
       </section>
@@ -517,7 +531,7 @@ export function PipelineRun({ auth, purpose = 'operational', initialOrgId = '', 
 
         {run.findings && <section className="pipeline-findings-section">
           <div className="pipeline-findings-heading">
-            <div><p className="kicker">{profile === 'visual_safety' ? 'VISUAL SAFETY EVIDENCE' : 'REGULATORY COMPLIANCE EVIDENCE'}</p><h2>Findings</h2><p>Boxes are drawn only on the orientation-corrected derivative returned by ingest.</p></div>
+            <div><p className="kicker">{profileInfo(profile).shortName.toUpperCase()} EVIDENCE</p><h2>Findings</h2><p>Boxes are drawn only on the orientation-corrected derivative returned by ingest.</p></div>
             {refutedCount > 0 && <label className="refuted-toggle"><input type="checkbox" checked={showRefuted} onChange={(event) => setShowRefuted(event.target.checked)} /><span>Show refuted ({refutedCount})</span></label>}
           </div>
           {!run.findings.parse_ok && <div className="pipeline-parse-warning"><AlertOctagon size={18} /><span><strong>Model output could not be parsed.</strong> This is not the same as finding no violations.</span></div>}

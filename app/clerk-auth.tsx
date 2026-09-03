@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { API_URL } from './api-config';
 
 export type AirisAuthState = {
   ready: boolean;
@@ -60,9 +61,19 @@ export function ClerkAuth({ onChange }: { onChange?: (state: AirisAuthState) => 
   useEffect(() => {
     let active = true;
     let unsubscribe: (() => void) | undefined;
-    const update = (resources?: ClerkResources) => {
+    const update = async (resources?: ClerkResources) => {
       if (!active) return;
-      const next = toAuthState(true, resources);
+      let next = toAuthState(true, resources);
+      if (next.signedIn && !next.isAdmin) {
+        try {
+          const token = await window.Clerk?.session?.getToken();
+          const response = await fetch(`${API_URL}/v1/admin/identity/status`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (response.ok) next = { ...next, isAdmin: true };
+        } catch { /* normal client users receive no admin navigation */ }
+      }
+      if (!active) return;
       setState(next);
       onChange?.(next);
     };
@@ -70,7 +81,7 @@ export function ClerkAuth({ onChange }: { onChange?: (state: AirisAuthState) => 
       if (!window.Clerk) return;
       await window.Clerk.load();
       update({ user: window.Clerk.user, organization: window.Clerk.organization });
-      unsubscribe = window.Clerk.addListener?.(update);
+      unsubscribe = window.Clerk.addListener?.((resources) => { void update(resources); });
     };
     const existing = document.querySelector<HTMLScriptElement>('[data-airis-clerk]');
     if (existing) {

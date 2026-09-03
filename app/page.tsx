@@ -2,7 +2,6 @@
 
 import {
   Activity,
-  Bell,
   BookOpenText,
   Bot,
   Building2,
@@ -21,6 +20,7 @@ import {
   RotateCcw,
   ScanSearch,
   ShieldCheck,
+  UserRoundCog,
   Sparkles,
   TriangleAlert,
   Workflow,
@@ -33,9 +33,11 @@ import { ClerkAuth, getClerkToken, type AirisAuthState } from './clerk-auth';
 import { KnowledgeBasePage } from './knowledge-base/knowledge-base-page';
 import { ClientManagement } from './client-management';
 import { InspectionHistory } from './inspection-history';
+import { IdentityAccess } from './identity-access';
 import { PipelineRun } from './pipeline-run';
 import { PortfolioBudgets } from './portfolio-budgets';
 import { ProjectTemplates } from './project-templates';
+import { NotificationCenter } from './notification-center';
 
 type Finding = {
   id: string;
@@ -82,9 +84,9 @@ const profiles = [
   },
 ];
 
-type PortfolioView = 'clients' | 'portfolio-budgets' | 'project-templates';
+type PortfolioView = 'clients' | 'identity' | 'portfolio-budgets' | 'project-templates';
 type AppView = 'analyze' | 'pipeline' | 'pipeline-history' | 'evaluation' | 'evaluation-history' | PortfolioView | AdminView;
-const adminViews: AppView[] = ['clients', 'portfolio-budgets', 'project-templates', 'knowledge', 'prompts', 'models', 'usage'];
+const adminViews: AppView[] = ['clients', 'identity', 'portfolio-budgets', 'project-templates', 'knowledge', 'prompts', 'models', 'usage'];
 const initialAuth: AirisAuthState = { ready: false, signedIn: false, isAdmin: false, organizationId: null, organizationSlug: null, organizationName: 'Operations workspace' };
 
 export default function Home() {
@@ -175,6 +177,22 @@ export default function Home() {
     }
   }
 
+  if (!auth.signedIn) {
+    return <main className="signed-out-shell">
+      <header className="signed-out-header">
+        <div className="brand-lockup"><div className="brand-mark"><ShieldCheck size={22} strokeWidth={2.2} /></div><div><strong>airis</strong><span>vision governance</span></div></div>
+        <span className="signed-out-security">Authorized access only</span>
+      </header>
+      <section className="signed-out-card" aria-labelledby="signed-out-title">
+        <div className="signed-out-mark"><ShieldCheck size={34} strokeWidth={1.8} /></div>
+        <p className="kicker">SECURE WORKSPACE</p>
+        <h1 id="signed-out-title">Sign in to Airis</h1>
+        <p>Access inspections, project history, and approved safety information through your authorized organization.</p>
+        <ClerkAuth onChange={handleAuthChange} />
+      </section>
+    </main>;
+  }
+
   return (
     <main className="app-shell">
       <aside className={`sidebar ${auth.isAdmin ? 'admin-sidebar' : ''}`}>
@@ -186,6 +204,7 @@ export default function Home() {
           {auth.isAdmin && <>
             <p className="nav-section">CLIENT PORTFOLIOS</p>
             <button className={`nav-item ${view === 'clients' ? 'active' : ''}`} onClick={() => setView('clients')}><Building2 size={18} /><span>Clients &amp; Projects</span></button>
+            <button className={`nav-item subnav-item ${view === 'identity' ? 'active' : ''}`} onClick={() => setView('identity')}><UserRoundCog size={15} /><span>Identity &amp; Access</span></button>
             <button className={`nav-item subnav-item ${view === 'portfolio-budgets' ? 'active' : ''}`} onClick={() => setView('portfolio-budgets')}><CircleDollarSign size={15} /><span>Budgets &amp; Usage</span></button>
             <button className={`nav-item subnav-item ${view === 'project-templates' ? 'active' : ''}`} onClick={() => setView('project-templates')}><Layers3 size={15} /><span>Project Templates</span></button>
             <p className="nav-section">AI GOVERNANCE</p>
@@ -210,7 +229,7 @@ export default function Home() {
           </div>
           <div className="topbar-actions">
             <span className="connection"><span /> API connected</span>
-            <button className="icon-button" aria-label="Notifications"><Bell size={18} /></button>
+            <NotificationCenter auth={auth} />
             {auth.isAdmin && <div className="persona-card topbar-persona"><span className="admin">A</span><div><strong>Airis Admin</strong><small>{auth.organizationName}</small></div></div>}
             <ClerkAuth onChange={handleAuthChange} />
           </div>
@@ -332,9 +351,10 @@ export default function Home() {
 
         {view === 'knowledge' && auth.isAdmin && <KnowledgeBasePage organizationName={auth.organizationName} />}
         {view === 'clients' && auth.isAdmin && <ClientManagement auth={auth} onInspect={(orgId, projectId) => { setInspectionScope({ orgId, projectId }); setView('pipeline'); }} onHistory={(orgId, projectId) => { setInspectionScope({ orgId, projectId }); setView('pipeline-history'); }} />}
+        {view === 'identity' && auth.isAdmin && <IdentityAccess />}
         {view === 'portfolio-budgets' && auth.isAdmin && <PortfolioBudgets />}
         {view === 'project-templates' && auth.isAdmin && <ProjectTemplates />}
-        {view !== 'knowledge' && !(['clients', 'portfolio-budgets', 'project-templates'] as AppView[]).includes(view) && (['prompts', 'models', 'usage'] as AppView[]).includes(view) && auth.isAdmin && <AdminConsole view={view as AdminView} organizationName={auth.organizationName} />}
+        {view !== 'knowledge' && !(['clients', 'identity', 'portfolio-budgets', 'project-templates'] as AppView[]).includes(view) && (['prompts', 'models', 'usage'] as AppView[]).includes(view) && auth.isAdmin && <AdminConsole view={view as AdminView} organizationName={auth.organizationName} />}
 
         <nav className="mobile-tabs" aria-label="Mobile navigation">
           <button className={view === 'pipeline' ? 'active' : ''} onClick={() => setView('pipeline')}><Workflow size={19} /><span>Inspect</span></button>

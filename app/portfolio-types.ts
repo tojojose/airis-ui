@@ -12,13 +12,15 @@ export type ProjectTemplate = {
   project_type: string; label: string; industry: string; domain: string;
   activity_tags: string[]; governing_authorities: string[];
   required_ppe: string[]; inspection_profiles: string[];
+  default_inspection_profile: string;
 };
 
 export const budgetPayload = (amount: string, period: BudgetPeriod) => amount === '' ? null : ({
-  amount: Number(amount), period, currency: 'USD', enforcement: 'notify_only',
-  warning_thresholds: [50, 75, 90, 100], timezone: 'America/New_York',
+  amount: Number(amount), period, currency: 'USD', enforcement: 'hard_stop_90',
+  warning_thresholds: [80, 90], timezone: 'America/New_York',
 });
 
 export const money = (value?: number) => new Intl.NumberFormat('en-US', {
-  style: 'currency', currency: 'USD', maximumFractionDigits: 2,
+  style: 'currency', currency: 'USD', minimumFractionDigits: 2,
+  maximumFractionDigits: value && Math.abs(value) < 0.01 ? 4 : 2,
 }).format(value || 0);
