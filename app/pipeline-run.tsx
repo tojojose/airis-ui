@@ -22,6 +22,7 @@ import { API_URL } from './api-config';
 import { getClerkToken, type AirisAuthState } from './clerk-auth';
 import { INSPECTION_PROFILES, profileInfo } from './inspection-profiles';
 import { RecentRuns } from './recent-runs';
+import { findingOutcome, groupFindings, groupSummary } from './finding-groups';
 
 type Through = 'ingest' | 'route' | 'detect' | 'inspect' | 'escalate';
 type RunStatus = 'ok' | 'skipped' | 'failed' | 'not_built';
@@ -82,6 +83,10 @@ type ComplianceFinding = {
   verification_reason?: string;
   evidence_quality?: string;
   display_status?: 'actionable' | 'needs_human_review' | 'hidden_refuted';
+  visual_evidence?: string;
+  applicability_basis?: string;
+  applicability_status?: 'applicable' | 'not_applicable' | 'unknown';
+  applicability_reason?: string;
   bbox: [number, number, number, number] | null;
   citations?: Citation[];
   escalation: {
@@ -132,6 +137,9 @@ type Props = {
   initialOrgId?: string;
   initialProjectId?: string;
   onHistory?: () => void;
+  onScopeChange?: (scope: {
+    orgId: string; orgName: string; projectId: string; projectName: string;
+  }) => void;
 };
 
 const stageDefinitions = [
@@ -202,7 +210,7 @@ function StageIcon({ status }: { status: RunStatus | ConfigStatus | 'waiting' })
   return <Workflow size={18} />;
 }
 
-export function PipelineRun({ auth, purpose = 'operational', initialOrgId = '', initialProjectId = '', onHistory }: Props) {
+export function PipelineRun({ auth, purpose = 'operational', initialOrgId = '', initialProjectId = '', onHistory, onScopeChange }: Props) {
   const [configured, setConfigured] = useState<StageInfo[]>([]);
   const [configError, setConfigError] = useState<string | null>(null);
   const [through, setThrough] = useState<Through>('escalate');
@@ -308,6 +316,19 @@ export function PipelineRun({ auth, purpose = 'operational', initialOrgId = '', 
   }, [auth.signedIn, selectedOrg, selectedProject]);
 
   const project = useMemo(() => projects.find((item) => item.project_id === selectedProject), [projects, selectedProject]);
+  const selectedClient = useMemo(
+    () => clients.find((item) => item.org_id === selectedOrg),
+    [clients, selectedOrg],
+  );
+
+  useEffect(() => {
+    onScopeChange?.({
+      orgId: selectedOrg,
+      orgName: selectedClient?.name || '',
+      projectId: selectedProject,
+      projectName: project?.name || '',
+    });
+  }, [onScopeChange, project?.name, selectedClient?.name, selectedOrg, selectedProject]);
   useEffect(() => {
     if (!project) return;
     const enabled: InspectionProfile[] = project.inspection_profiles?.length
@@ -322,15 +343,14 @@ export function PipelineRun({ auth, purpose = 'operational', initialOrgId = '', 
     return { ...definition, record, info };
   }), [configured, run]);
 
-  const findings = useMemo(() => {
-    const all = run?.findings?.findings ?? [];
-    return showRefuted ? all : all.filter((finding) =>
-      finding.display_status !== 'hidden_refuted' &&
-      finding.verification_status !== 'refuted' &&
-      finding.escalation?.verdict !== 'refuted');
-  }, [run, showRefuted]);
+  const allFindings = useMemo(() => run?.findings?.findings ?? [], [run]);
+  const findings = useMemo(() => showRefuted
+    ? allFindings
+    : allFindings.filter((finding) => findingOutcome(finding) !== 'dismissed'),
+  [allFindings, showRefuted]);
 
-  const refutedCount = run?.findings?.findings.filter((finding) => finding.verification_status === 'refuted' || finding.escalation?.verdict === 'refuted').length ?? 0;
+  const findingGroups = useMemo(() => groupFindings(allFindings), [allFindings]);
+  const refutedCount = allFindings.filter((finding) => findingOutcome(finding) === 'dismissed').length;
   const stageCost = run?.stages.reduce((sum, stage) => sum + (stage.cost_usd || 0), 0) ?? 0;
   const costMatches = run ? Math.abs(stageCost - run.cost.total_usd) < 0.0000005 : true;
   const selectedCost = throughOptions.find((item) => item.value === through)?.cost;
@@ -531,8 +551,8 @@ export function PipelineRun({ auth, purpose = 'operational', initialOrgId = '', 
 
         {run.findings && <section className="pipeline-findings-section">
           <div className="pipeline-findings-heading">
-            <div><p className="kicker">{profileInfo(profile).shortName.toUpperCase()} EVIDENCE</p><h2>Findings</h2><p>Boxes are drawn only on the orientation-corrected derivative returned by ingest.</p></div>
-            {refutedCount > 0 && <label className="refuted-toggle"><input type="checkbox" checked={showRefuted} onChange={(event) => setShowRefuted(event.target.checked)} /><span>Show refuted ({refutedCount})</span></label>}
+            <div><p className="kicker">{profileInfo(profile).shortName.toUpperCase()} EVIDENCE</p><h2>Safety control summary</h2><p>Confirmed actions and uncertain observations are grouped by control. Open a group to review each marked person or location.</p></div>
+            {refutedCount > 0 && <label className="refuted-toggle"><input type="checkbox" checked={showRefuted} onChange={(event) => setShowRefuted(event.target.checked)} /><span>Show dismissed ({refutedCount})</span></label>}
           </div>
           {!run.findings.parse_ok && <div className="pipeline-parse-warning"><AlertOctagon size={18} /><span><strong>Model output could not be parsed.</strong> This is not the same as finding no violations.</span></div>}
           {run.findings.parse_ok && run.findings.findings.length === 0 && <div className="pipeline-clear-state"><ShieldCheck size={30} /><div><strong>No violations found</strong><p>The response parsed successfully and contained no compliance findings.</p></div></div>}
@@ -551,29 +571,27 @@ export function PipelineRun({ auth, purpose = 'operational', initialOrgId = '', 
                 ><span>{index + 1}</span></button>)}
               </div> : <div className="derivative-missing"><FileImage size={27} /><p>The corrected derivative was not returned, so boxes cannot be drawn safely.</p></div>}
             </div>
-            <div className="pipeline-finding-list">
-              {findings.map((finding, index) => {
-                const refuted = finding.verification_status === 'refuted' || finding.escalation?.verdict === 'refuted';
-                return <article
-                  className={`pipeline-finding ${refuted ? 'is-refuted' : ''} ${activeFinding === finding.id ? 'active' : ''}`}
-                  key={finding.id}
-                  onMouseEnter={() => setActiveFinding(finding.id)}
-                  onMouseLeave={() => setActiveFinding(null)}
-                  onClick={() => setActiveFinding(finding.id)}
-                >
-                  <header><span className={`finding-index severity-${finding.severity}`}>{index + 1}</span><div><small>{finding.category}</small><strong>{finding.description}</strong></div><em className={`severity ${finding.severity}`}>{finding.severity}</em></header>
-                  <div className="finding-confidence"><span><strong>{finding.verification_status === 'confirmed' ? 'Confirmed' : finding.verification_status === 'indeterminate' ? 'Needs review' : finding.verification_status === 'refuted' ? 'Refuted' : 'Unverified'}</strong> evidence status</span>{typeof finding.retrieval_score === 'number' && <span><strong>{Math.round(finding.retrieval_score * 100)}%</strong> source match</span>}{!finding.bbox && <span><strong>No box</strong> scene-level claim</span>}</div>
-                  {refuted && <div className="refuted-verdict"><X size={15} /><span><strong>Refuted by evidence review</strong>{finding.verification_reason || finding.escalation?.reason}</span></div>}
-                  {(finding.citations || []).map((citation, citationIndex) => {
-                    const unidentified = !citation.section || citation.section.toLowerCase() === 'see excerpt';
-                    return <div className="finding-citation" key={`${finding.id}-${citationIndex}`}>
-                      <span>{unidentified ? 'Section unidentified' : `Section ${citation.section}`}{citation.kb ? ` · ${citation.kb}` : ''}</span>
-                      {citation.excerpt && <blockquote>{citation.excerpt}</blockquote>}
-                    </div>;
-                  })}
-                </article>;
-              })}
-              {!findings.length && refutedCount > 0 && <div className="filtered-empty">Refuted findings are hidden by the current filter.</div>}
+            <div className="pipeline-finding-list grouped-findings">
+              {findingGroups.map((group) => {
+                const groupItems = showRefuted ? group.items : group.items.filter((finding) => findingOutcome(finding) !== 'dismissed');
+                return <article className={`finding-group outcome-${group.outcome}`} key={group.key}>
+                <header className="finding-group-header"><div><small>{group.category}</small><strong>{group.title}</strong><span>{groupSummary(group)}</span></div><em className={`group-outcome ${group.outcome}`}>{group.outcome === 'actionable' ? 'Action required' : group.outcome === 'review' ? 'Review needed' : 'Dismissed'}</em></header>
+                <div className="finding-group-matrix"><span><strong>{group.actionable}</strong> confirmed</span><span><strong>{group.review}</strong> uncertain</span><span><strong>{group.dismissed}</strong> dismissed</span></div>
+                {groupItems.length > 0 ? <details open={groupItems.length === 1}>
+                  <summary>{groupItems.length === 1 ? 'View observation' : `Review ${groupItems.length} individual observations`}</summary>
+                  <div className="finding-group-items">{groupItems.map((finding) => {
+                    const itemIndex = findings.findIndex((item) => item.id === finding.id);
+                    const outcome = findingOutcome(finding);
+                    return <button type="button" key={finding.id} className={`finding-group-item ${activeFinding === finding.id ? 'active' : ''}`} onMouseEnter={() => setActiveFinding(finding.id)} onMouseLeave={() => setActiveFinding(null)} onClick={() => setActiveFinding(finding.id)}>
+                      <span className={`finding-index severity-${finding.severity}`}>{itemIndex + 1}</span><span><strong>{finding.description}</strong><small>{outcome === 'actionable' ? 'Confirmed by evidence review' : outcome === 'review' ? 'Visible evidence needs human review' : 'Dismissed by applicability or evidence review'}</small>{(finding.visual_evidence || finding.verification_reason || finding.escalation?.reason) && <small>{finding.visual_evidence || finding.verification_reason || finding.escalation?.reason}</small>}</span>
+                    </button>;
+                  })}</div>
+                </details> : <p className="finding-group-clear">No confirmed violation remains. Individual dismissed observations are hidden.</p>}
+                {(group.items[0].citations || []).map((citation, citationIndex) => {
+                  const unidentified = !citation.section || citation.section.toLowerCase() === 'see excerpt';
+                  return <div className="finding-citation" key={`${group.key}-${citationIndex}`}><span>{unidentified ? 'Section unidentified' : `Section ${citation.section}`}{citation.kb ? ` · ${citation.kb}` : ''}</span>{citation.excerpt && <blockquote>{citation.excerpt}</blockquote>}</div>;
+                })}
+              </article>})}
             </div>
           </div>}
 

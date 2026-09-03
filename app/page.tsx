@@ -100,7 +100,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [auth, setAuth] = useState<AirisAuthState>(initialAuth);
   const [view, setView] = useState<AppView>('pipeline');
-  const [inspectionScope, setInspectionScope] = useState({ orgId: '', projectId: '' });
+  const [inspectionScope, setInspectionScope] = useState({ orgId: '', orgName: '', projectId: '', projectName: '' });
   const cameraInput = useRef<HTMLInputElement>(null);
   const uploadInput = useRef<HTMLInputElement>(null);
   const profile = useMemo(() => profiles.find((item) => item.id === profileId) ?? profiles[0], [profileId]);
@@ -110,6 +110,14 @@ export default function Home() {
     setAuth(next);
     if (!next.isAdmin) setView((current) => adminViews.includes(current as AdminView) ? 'pipeline' : current);
   }, []);
+  const handleInspectionScopeChange = useCallback((scope: { orgId: string; orgName: string; projectId: string; projectName: string }) => {
+    setInspectionScope(scope);
+  }, []);
+  const topbarOrganizationName = auth.isAdmin
+    && ['pipeline', 'pipeline-history', 'evaluation', 'evaluation-history'].includes(view)
+    && inspectionScope.orgName
+    ? inspectionScope.orgName
+    : auth.organizationName;
 
   useEffect(() => {
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => undefined);
@@ -211,7 +219,7 @@ export default function Home() {
             <button className={`nav-item ${view === 'knowledge' ? 'active' : ''}`} onClick={() => setView('knowledge')}><BookOpenText size={18} /><span>Knowledge Base</span></button>
             <button className={`nav-item ${view === 'prompts' ? 'active' : ''}`} onClick={() => setView('prompts')}><FilePenLine size={18} /><span>Prompt Studio</span></button>
             <button className={`nav-item ${view === 'models' ? 'active' : ''}`} onClick={() => setView('models')}><Bot size={18} /><span>Models</span></button>
-            <button className={`nav-item ${view === 'evaluation' ? 'active' : ''}`} onClick={() => { setInspectionScope({ orgId: '', projectId: '' }); setView('evaluation'); }}><FlaskConical size={18} /><span>Evaluation Lab</span></button>
+            <button className={`nav-item ${view === 'evaluation' ? 'active' : ''}`} onClick={() => { setInspectionScope({ orgId: '', orgName: '', projectId: '', projectName: '' }); setView('evaluation'); }}><FlaskConical size={18} /><span>Evaluation Lab</span></button>
             <button className={`nav-item subnav-item ${view === 'evaluation-history' ? 'active' : ''}`} onClick={() => setView('evaluation-history')}><History size={15} /><span>Evaluation History</span></button>
             <p className="nav-section">USAGE ANALYTICS</p>
             <button className={`nav-item ${view === 'usage' ? 'active' : ''}`} onClick={() => setView('usage')}><CircleDollarSign size={18} /><span>Usage &amp; Cost</span></button>
@@ -224,7 +232,7 @@ export default function Home() {
           <div className="topbar-left">
             <div>
               <div className="eyebrow">{auth.isAdmin ? 'AIRIS ADMIN' : 'VISION GOVERNANCE'}</div>
-              <div className="workspace-title">{auth.organizationName}</div>
+              <div className="workspace-title">{topbarOrganizationName}</div>
             </div>
           </div>
           <div className="topbar-actions">
@@ -343,14 +351,14 @@ export default function Home() {
           </aside>
         </div>}
 
-        {view === 'pipeline-history' && <InspectionHistory auth={auth} purpose="operational" initialOrgId={inspectionScope.orgId} initialProjectId={inspectionScope.projectId} />}
-        {view === 'evaluation-history' && auth.isAdmin && <InspectionHistory auth={auth} purpose="evaluation" initialOrgId={inspectionScope.orgId} initialProjectId={inspectionScope.projectId} />}
+        {view === 'pipeline-history' && <InspectionHistory auth={auth} purpose="operational" initialOrgId={inspectionScope.orgId} initialProjectId={inspectionScope.projectId} onScopeChange={handleInspectionScopeChange} />}
+        {view === 'evaluation-history' && auth.isAdmin && <InspectionHistory auth={auth} purpose="evaluation" initialOrgId={inspectionScope.orgId} initialProjectId={inspectionScope.projectId} onScopeChange={handleInspectionScopeChange} />}
 
-        {view === 'pipeline' && <PipelineRun auth={auth} purpose="operational" initialOrgId={inspectionScope.orgId} initialProjectId={inspectionScope.projectId} onHistory={() => setView('pipeline-history')} />}
-        {view === 'evaluation' && auth.isAdmin && <PipelineRun auth={auth} purpose="evaluation" initialOrgId={inspectionScope.orgId} initialProjectId={inspectionScope.projectId} onHistory={() => setView('evaluation-history')} />}
+        {view === 'pipeline' && <PipelineRun auth={auth} purpose="operational" initialOrgId={inspectionScope.orgId} initialProjectId={inspectionScope.projectId} onHistory={() => setView('pipeline-history')} onScopeChange={handleInspectionScopeChange} />}
+        {view === 'evaluation' && auth.isAdmin && <PipelineRun auth={auth} purpose="evaluation" initialOrgId={inspectionScope.orgId} initialProjectId={inspectionScope.projectId} onHistory={() => setView('evaluation-history')} onScopeChange={handleInspectionScopeChange} />}
 
         {view === 'knowledge' && auth.isAdmin && <KnowledgeBasePage organizationName={auth.organizationName} />}
-        {view === 'clients' && auth.isAdmin && <ClientManagement auth={auth} onInspect={(orgId, projectId) => { setInspectionScope({ orgId, projectId }); setView('pipeline'); }} onHistory={(orgId, projectId) => { setInspectionScope({ orgId, projectId }); setView('pipeline-history'); }} />}
+        {view === 'clients' && auth.isAdmin && <ClientManagement auth={auth} onInspect={(orgId, projectId) => { setInspectionScope({ orgId, orgName: '', projectId, projectName: '' }); setView('pipeline'); }} onHistory={(orgId, projectId) => { setInspectionScope({ orgId, orgName: '', projectId, projectName: '' }); setView('pipeline-history'); }} />}
         {view === 'identity' && auth.isAdmin && <IdentityAccess />}
         {view === 'portfolio-budgets' && auth.isAdmin && <PortfolioBudgets />}
         {view === 'project-templates' && auth.isAdmin && <ProjectTemplates />}
