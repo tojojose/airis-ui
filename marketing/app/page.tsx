@@ -22,17 +22,25 @@ export default function Home() {
 
       <section className="campaign-section campaign-hero" id="top">
         <div className="campaign-image" role="img" aria-label="Construction professionals using Airis visual intelligence at an active site" />
-        <div className="campaign-quote">
-          <p>ASSISTIVE BY DESIGN</p>
-          <blockquote>“AI finds the signal. People make the decision.”</blockquote>
-          <span>Airis does not certify compliance or replace professional inspections. It helps qualified teams review more visual evidence with consistent context.</span>
+        <div className="campaign-hero-copy">
+          <h1><em>Human-led</em> visual compliance intelligence</h1>
         </div>
+      </section>
+
+      {/* The hero image carries its own headline. The pull-quote used to sit on
+          top of it in a panel, which covered the last line of that headline -
+          so it lives directly beneath the image instead, where it can be read
+          without taking anything away from the picture. */}
+      <section className="campaign-note">
+        <p>ASSISTIVE BY DESIGN</p>
+        <blockquote>“AI finds the signal. People make the decision.”</blockquote>
+        <span>Airis does not certify compliance or replace professional inspections. It helps qualified teams review more visual evidence with consistent context.</span>
       </section>
 
       <section className="hero">
         <div className="hero-copy">
           <p className="eyebrow"><span /> HUMAN-LED VISUAL INTELLIGENCE</p>
-          <h1>See potential risks <em>before</em> they become incidents.</h1>
+          <h2>See potential risks <em>before</em> they become incidents.</h2>
           <p className="hero-lede">
             Airis analyzes construction images and video against the rules that apply where you operate—then gives qualified reviewers explainable findings, evidence, and confidence scores.
           </p>

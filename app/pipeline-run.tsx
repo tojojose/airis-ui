@@ -452,7 +452,7 @@ export function PipelineRun({ auth, purpose = 'operational', initialOrgId = '', 
           })}</div>
           {profile === 'regulatory_compliance' && project && (!project.country_code || !project.industry) && <div className="inspection-profile-advisory"><TriangleAlert size={15} /><span><strong>Project context is incomplete.</strong> Add country and industry information to improve regulatory source selection.</span></div>}
         </div>
-        {project ? <div className="inspection-context-preview"><strong>{project.name}</strong><span>{[project.municipality, project.state_code, project.country_code, project.industry, project.domain].filter(Boolean).join(' · ') || 'Project context needs configuration'}</span>{project.activity_tags?.length ? <small>{project.activity_tags.join(' · ')}</small> : null}</div> : purpose === 'evaluation' && !selectedOrg ? <div className="inspection-context-preview sandbox"><strong>System sandbox</strong><span>No client KB overlay or project history attribution</span></div> : <div className="inspection-context-warning"><TriangleAlert size={16} /> Select a client project before starting an operational inspection.</div>}
+        {project ? <div className="inspection-context-preview"><strong>{project.name}</strong><span>{[project.municipality, project.state_code, project.country_code, project.industry, project.domain].filter(Boolean).join(' · ') || 'Project context needs configuration'}</span>{project.activity_tags?.length ? <small>{project.activity_tags.join(' · ')}</small> : null}</div> : purpose === 'evaluation' && !selectedOrg ? <div className="inspection-context-preview sandbox"><strong>System sandbox</strong><span>No client KB overlay or project history attribution</span></div> : projects.length === 0 && !auth.isAdmin ? <div className="inspection-context-warning"><TriangleAlert size={16} /> No projects are assigned to you yet. A Client Manager assigns them from the Team screen — until then there is nothing to inspect against.</div> : <div className="inspection-context-warning"><TriangleAlert size={16} /> Select a client project before starting an operational inspection.</div>}
       </section>
 
       <section className="pipeline-timeline-card" aria-label="Pipeline stages">
@@ -475,6 +475,10 @@ export function PipelineRun({ auth, purpose = 'operational', initialOrgId = '', 
                     <div><dt>Latency</dt><dd>{formatLatency(record?.latency_ms)}</dd></div>
                     <div><dt>Cost</dt><dd>{formatCost(record?.cost_usd)}</dd></div>
                     <div><dt>Model</dt><dd>{modelName(info?.model)}</dd></div>
+                    {typeof record?.detail?.prompt === 'string' && record.detail.prompt
+                      ? <div><dt>Prompt</dt><dd>{String(record.detail.prompt)}</dd></div> : null}
+                    {typeof record?.detail?.domain_prompt === 'string' && record.detail.domain_prompt
+                      ? <div><dt>Specialist</dt><dd>{String(record.detail.domain_prompt)}</dd></div> : null}
                   </dl>
                   {(status === 'skipped' || status === 'off') && <p className="stage-explanation"><strong>Deliberately off.</strong> {note || 'This built stage is disabled by configuration.'}</p>}
                   {status === 'failed' && <p className="stage-explanation failed"><strong>{record?.error || 'Stage failed.'}</strong> {failedImpact(definition.stage)}</p>}

@@ -7,6 +7,10 @@ export type AirisAuthState = {
   ready: boolean;
   signedIn: boolean;
   isAdmin: boolean;
+  /** Client Manager in the active organization. Probed from the API rather
+   *  than read out of the token: the API is what enforces it, and a claim the
+   *  UI trusts but the server disagrees with is a screen full of 403s. */
+  isManager: boolean;
   organizationId: string | null;
   organizationSlug: string | null;
   organizationName: string;
@@ -43,6 +47,7 @@ function toAuthState(ready: boolean, resources?: ClerkResources): AirisAuthState
     ready,
     signedIn,
     isAdmin: isAirisAdmin(organization),
+    isManager: false,
     organizationId: organization?.id ?? null,
     organizationSlug: organization?.slug ?? null,
     organizationName: organization?.name ?? (signedIn ? 'Personal workspace' : 'Operations workspace'),
@@ -54,7 +59,7 @@ export async function getClerkToken(forceRefresh = false) {
 }
 
 export function ClerkAuth({ onChange }: { onChange?: (state: AirisAuthState) => void }) {
-  const [state, setState] = useState<AirisAuthState>(() => ({ ready: false, signedIn: false, isAdmin: false, organizationId: null, organizationSlug: null, organizationName: 'Operations workspace' }));
+  const [state, setState] = useState<AirisAuthState>(() => ({ ready: false, signedIn: false, isAdmin: false, isManager: false, organizationId: null, organizationSlug: null, organizationName: 'Operations workspace' }));
   const userButton = useRef<HTMLDivElement>(null);
   const orgSwitcher = useRef<HTMLDivElement>(null);
 
@@ -64,14 +69,22 @@ export function ClerkAuth({ onChange }: { onChange?: (state: AirisAuthState) => 
     const update = async (resources?: ClerkResources) => {
       if (!active) return;
       let next = toAuthState(true, resources);
-      if (next.signedIn && !next.isAdmin) {
+      if (next.signedIn) {
+        // ONE call, and it answers 200 for every signed-in client user. The
+        // previous pair of probes asked their questions by provoking 403s -
+        // which put two red errors in the console on every page load and made
+        // a real failure indistinguishable from the app working correctly.
         try {
           const token = await window.Clerk?.session?.getToken();
-          const response = await fetch(`${API_URL}/v1/admin/identity/status`, {
+          const response = await fetch(`${API_URL}/v1/projects/me`, {
             headers: { Authorization: `Bearer ${token}` },
           });
-          if (response.ok) next = { ...next, isAdmin: true };
-        } catch { /* normal client users receive no admin navigation */ }
+          if (response.ok) {
+            const me = await response.json() as { is_admin?: boolean; role?: string };
+            next = { ...next, isAdmin: next.isAdmin || Boolean(me.is_admin),
+                     isManager: me.role === 'org:client_manager' };
+          }
+        } catch { /* navigation falls back to the Clerk organization alone */ }
       }
       if (!active) return;
       setState(next);

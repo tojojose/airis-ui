@@ -24,8 +24,8 @@ a { color:inherit; text-decoration:none; }
 .hero-copy { max-width:700px; position:relative; z-index:2; }
 .eyebrow { font-size:11px; letter-spacing:.14em; font-weight:900; color:#4d695f; display:flex; align-items:center; gap:10px; margin:0 0 27px; }
 .eyebrow span { width:31px; height:2px; background:#3a9e78; }
-h1 { margin:0; font-family:Georgia,'Times New Roman',serif; font-size:clamp(48px,6.2vw,92px); font-weight:500; line-height:.96; letter-spacing:-.055em; max-width:780px; }
-h1 em { color:#318364; font-weight:500; }
+h1, .hero-copy h2 { margin:0; font-family:Georgia,'Times New Roman',serif; font-size:clamp(48px,6.2vw,92px); font-weight:500; line-height:.96; letter-spacing:-.055em; max-width:780px; }
+h1 em, .hero-copy h2 em { color:#318364; font-weight:500; font-style:italic; }
 .hero-lede { max-width:635px; margin:31px 0 31px; font-size:clamp(17px,1.5vw,21px); line-height:1.58; color:#3e554d; }
 .human-note { margin:25px 0 0; max-width:590px; color:#63746e; font-size:12px; line-height:1.55; }
 .human-note b { color:#183c32; }
@@ -55,7 +55,7 @@ h1 em { color:#318364; font-weight:500; }
 .review-row { display:flex; justify-content:space-between; align-items:center; margin-top:13px; font-size:9px; color:#6b7c75; }
 .review-row button { border:0; background:transparent; color:#14654e; font-weight:900; font-size:10px; }
 @media (max-width:980px){.desktop-nav{display:none}.hero{grid-template-columns:1fr}.hero-product{max-width:680px;width:100%;margin:auto}.hero-copy{max-width:760px}.hero{padding-top:70px}}
-@media (max-width:620px){.site-header{height:68px}.header-actions .text-link{display:none}.hero{padding:52px 18px;min-height:auto}.hero-actions{align-items:stretch;flex-direction:column}.button{width:100%}.hero-product{min-height:520px;padding:8px}.site-scene{height:280px}.finding-card{margin:-18px 8px 0;padding:15px}.confidence{display:none}h1{font-size:50px}.human-note{text-align:center}}
+@media (max-width:620px){.site-header{height:68px}.header-actions .text-link{display:none}.hero{padding:52px 18px;min-height:auto}.hero-actions{align-items:stretch;flex-direction:column}.button{width:100%}.hero-product{min-height:520px;padding:8px}.site-scene{height:280px}.finding-card{margin:-18px 8px 0;padding:15px}.confidence{display:none}h1,.hero-copy h2{font-size:50px}.human-note{text-align:center}}
 
 .signal-strip { min-height:118px; background:#d9f26c; display:flex; align-items:center; justify-content:space-between; gap:40px; padding:28px clamp(22px,6vw,96px); }
 .signal-strip>p { margin:0; font-size:10px; font-weight:900; letter-spacing:.13em; white-space:nowrap; }
@@ -95,10 +95,25 @@ h1 em { color:#318364; font-weight:500; }
 .context-core>p { color:#b9cbc4; font-size:11px; line-height:1.55; }
 .context-core>div { margin-top:auto; padding-top:18px; border-top:1px solid #578071; color:#b9cbc4; font-size:6px; letter-spacing:.08em; display:flex; flex-wrap:wrap; gap:8px; }
 .context-core>div i { color:var(--lime); font-style:normal; }
-.campaign-section { min-height:760px; position:relative; display:grid; align-items:end; overflow:hidden; }
-.campaign-image { position:absolute; inset:0; background-image:linear-gradient(90deg,rgba(5,35,28,.2),rgba(5,35,28,0)),url('/og.png'); background-size:cover; background-position:center; }
-.campaign-quote { position:relative; z-index:2; width:min(680px,calc(100% - 44px)); margin:0 0 50px clamp(22px,6vw,96px); padding:34px 38px; background:rgba(246,247,240,.95); border-left:5px solid var(--lime); }
-.campaign-quote>p { font-size:9px; font-weight:900; letter-spacing:.13em; color:#4f6b60; }.campaign-quote blockquote{margin:13px 0 17px;font-family:Georgia,serif;font-size:clamp(29px,4vw,47px);line-height:1.08}.campaign-quote>span{font-size:12px;line-height:1.55;color:#586a63}
+/* The headline is real text, not pixels. It used to be baked into og.png,
+   which meant it could not be selected, translated, indexed or re-wrapped -
+   and on a phone the crop simply cut it off. hero-site.jpg is that same image
+   with the flat green panel (and the text on it) cropped away; the panel is
+   this background colour, sampled from the pixels that were removed, so the
+   seam is invisible. og.png stays exactly as it is - it is still the social
+   share card. */
+.campaign-section { min-height:760px; position:relative; overflow:hidden; display:grid; align-items:center; isolation:isolate; }
+.campaign-image { position:absolute; inset:0; background:#0a2b23; }
+.campaign-image:after { content:''; position:absolute; z-index:0; inset:0 0 0 auto; width:min(60%,942px); background:url('/hero-site.jpg') right center/cover no-repeat; -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 110px); mask-image:linear-gradient(90deg,transparent 0,#000 110px); }
+.campaign-hero-copy { position:relative; z-index:2; padding:0 clamp(22px,6vw,96px); max-width:min(700px,52vw); }
+.campaign-hero-copy h1 { max-width:none; font-size:clamp(40px,4.9vw,78px); line-height:1.04; letter-spacing:-.03em; color:#f2f5f2; }
+.campaign-hero-copy h1 em { display:block; color:#b6d66c; font-style:normal; }
+/* The quote reads as the image's caption rather than as something laid over
+   it: same deep green the hero fades into, so the two sit as one block. */
+.campaign-note { padding:clamp(32px,5vw,54px) clamp(22px,6vw,96px); border-top:4px solid var(--lime); background:var(--forest); color:#eef3ef; display:grid; grid-template-columns:minmax(0,1.35fr) minmax(0,1fr); gap:16px clamp(20px,4vw,64px); align-items:end; }
+.campaign-note>p { grid-column:1; margin:0; font-size:9px; font-weight:900; letter-spacing:.13em; color:var(--lime); }
+.campaign-note blockquote { grid-column:1; margin:13px 0 0; font-family:Georgia,serif; font-size:clamp(29px,4vw,47px); line-height:1.08; }
+.campaign-note>span { grid-column:2; grid-row:1/span 2; align-self:end; font-size:12.5px; line-height:1.6; color:#b9cbc4; }
 .split-heading { max-width:none; display:grid; grid-template-columns:1.25fr .75fr; gap:80px; align-items:end; }
 .split-heading>p { margin:0; padding-bottom:7px; }
 .industry-grid { display:grid; grid-template-columns:repeat(3,1fr); margin-top:70px; border:1px solid #c6d0ca; }
@@ -116,4 +131,4 @@ h1 em { color:#318364; font-weight:500; }
 footer { background:#0b1c18;color:#dce9e3;padding:62px clamp(22px,6vw,96px) 35px;display:grid;grid-template-columns:1fr 1fr;gap:35px;align-items:start}.footer-brand{color:white}footer>p{margin:5px 0;color:#8fa79e;text-align:right;font-size:12px}footer>div{display:flex;gap:28px;font-size:11px;color:#a8bbb4}footer small{text-align:right;color:#6f877e;font-size:9px}
 
 @media (max-width:980px){.workflow-grid{grid-template-columns:repeat(2,1fr)}.workflow-card{border-bottom:1px solid #bfcac3}.workflow-card:nth-child(2n){border-right:0}.context-section,.inputs-section,.review-section{grid-template-columns:1fr}.context-map{max-width:760px}.split-heading{grid-template-columns:1fr;gap:20px}.industry-grid{grid-template-columns:repeat(2,1fr)}.industry-grid article:nth-child(3n){border-right:1px solid #c6d0ca}.industry-grid article:nth-child(2n){border-right:0}.industry-grid article:nth-child(n+4){border-bottom:1px solid #c6d0ca}.industry-grid article:nth-child(n+5){border-bottom:0}.final-cta{grid-template-columns:1fr}.final-cta .hero-actions{justify-self:start}}
-@media (max-width:620px){.signal-strip{align-items:flex-start;flex-direction:column}.signal-strip div{justify-content:flex-start}.section{padding:78px 18px}.workflow-grid{grid-template-columns:1fr;margin-top:45px}.workflow-card,.workflow-card:not(:first-child){min-height:auto;padding:24px 0;border-right:0}.workflow-card>span{margin-bottom:26px}.context-section,.inputs-section,.review-section{padding:78px 18px}.context-points li{grid-template-columns:1fr;gap:7px}.jurisdiction-row{grid-template-columns:1fr}.jurisdiction-row:after{display:none}.context-map-body{grid-template-columns:1fr;gap:24px}.operational-axis:after{content:"↓";right:auto;left:50%;top:auto;bottom:-23px}.context-core{min-height:290px;padding:24px}.campaign-section{min-height:600px}.campaign-image{background-position:62% center}.campaign-quote{padding:25px 22px;margin:0 18px 22px}.industry-grid{grid-template-columns:1fr;margin-top:42px}.industry-grid article,.industry-grid article:nth-child(3n),.industry-grid article:nth-child(n+4){border-right:0;border-bottom:1px solid #c6d0ca}.industry-grid article:last-child{border-bottom:0}.review-principles article{grid-template-columns:1fr;gap:8px}.final-cta{padding:78px 18px}.final-cta .hero-actions{width:100%}.final-cta .pilot-link{text-align:center}.final-cta h2{font-size:47px}footer{grid-template-columns:1fr}footer>p,footer small{text-align:left}footer>div{flex-wrap:wrap;gap:17px}}
+@media (max-width:620px){.signal-strip{align-items:flex-start;flex-direction:column}.signal-strip div{justify-content:flex-start}.section{padding:78px 18px}.workflow-grid{grid-template-columns:1fr;margin-top:45px}.workflow-card,.workflow-card:not(:first-child){min-height:auto;padding:24px 0;border-right:0}.workflow-card>span{margin-bottom:26px}.context-section,.inputs-section,.review-section{padding:78px 18px}.context-points li{grid-template-columns:1fr;gap:7px}.jurisdiction-row{grid-template-columns:1fr}.jurisdiction-row:after{display:none}.context-map-body{grid-template-columns:1fr;gap:24px}.operational-axis:after{content:"↓";right:auto;left:50%;top:auto;bottom:-23px}.context-core{min-height:290px;padding:24px}.campaign-section{min-height:600px}.campaign-image:after{width:100%;-webkit-mask-image:none;mask-image:none;background-position:62% center}.campaign-image:before{content:'';position:absolute;z-index:1;inset:0;background:linear-gradient(180deg,rgba(8,41,33,.93),rgba(8,41,33,.5) 58%,rgba(8,41,33,.92))}.campaign-hero-copy{max-width:none;padding:0 18px}.campaign-hero-copy h1{font-size:clamp(34px,9vw,52px)}.campaign-note{grid-template-columns:1fr;gap:16px;padding:30px 18px}.campaign-note>p,.campaign-note blockquote,.campaign-note>span{grid-column:1}.campaign-note>span{grid-row:auto}.industry-grid{grid-template-columns:1fr;margin-top:42px}.industry-grid article,.industry-grid article:nth-child(3n),.industry-grid article:nth-child(n+4){border-right:0;border-bottom:1px solid #c6d0ca}.industry-grid article:last-child{border-bottom:0}.review-principles article{grid-template-columns:1fr;gap:8px}.final-cta{padding:78px 18px}.final-cta .hero-actions{width:100%}.final-cta .pilot-link{text-align:center}.final-cta h2{font-size:47px}footer{grid-template-columns:1fr}footer>p,footer small{text-align:left}footer>div{flex-wrap:wrap;gap:17px}}

@@ -37,6 +37,8 @@ import { IdentityAccess } from './identity-access';
 import { PipelineRun } from './pipeline-run';
 import { PortfolioBudgets } from './portfolio-budgets';
 import { ProjectTemplates } from './project-templates';
+import { PromptStudio } from './prompt-studio';
+import { Team } from './team';
 import { NotificationCenter } from './notification-center';
 
 type Finding = {
@@ -85,9 +87,9 @@ const profiles = [
 ];
 
 type PortfolioView = 'clients' | 'identity' | 'portfolio-budgets' | 'project-templates';
-type AppView = 'analyze' | 'pipeline' | 'pipeline-history' | 'evaluation' | 'evaluation-history' | PortfolioView | AdminView;
+type AppView = 'analyze' | 'pipeline' | 'pipeline-history' | 'evaluation' | 'evaluation-history' | 'team' | PortfolioView | AdminView;
 const adminViews: AppView[] = ['clients', 'identity', 'portfolio-budgets', 'project-templates', 'knowledge', 'prompts', 'models', 'usage'];
-const initialAuth: AirisAuthState = { ready: false, signedIn: false, isAdmin: false, organizationId: null, organizationSlug: null, organizationName: 'Operations workspace' };
+const initialAuth: AirisAuthState = { ready: false, signedIn: false, isAdmin: false, isManager: false, organizationId: null, organizationSlug: null, organizationName: 'Operations workspace' };
 
 export default function Home() {
   const [profileId, setProfileId] = useState('safety');
@@ -209,6 +211,7 @@ export default function Home() {
           {auth.isAdmin && <p className="nav-section nav-section-first">SOLUTION DISCOVERY</p>}
           <button className={`nav-item ${view === 'pipeline' ? 'active' : ''}`} onClick={() => setView('pipeline')}><Workflow size={18} /><span>New Inspection</span></button>
           <button className={`nav-item subnav-item ${view === 'pipeline-history' ? 'active' : ''}`} aria-label="Inspection history" onClick={() => setView('pipeline-history')}><History size={15} /><span>Inspection History</span></button>
+          {auth.isManager && !auth.isAdmin && <button className={`nav-item subnav-item ${view === 'team' ? 'active' : ''}`} onClick={() => setView('team')}><UserRoundCog size={15} /><span>Team</span></button>}
           {auth.isAdmin && <>
             <p className="nav-section">CLIENT PORTFOLIOS</p>
             <button className={`nav-item ${view === 'clients' ? 'active' : ''}`} onClick={() => setView('clients')}><Building2 size={18} /><span>Clients &amp; Projects</span></button>
@@ -362,7 +365,9 @@ export default function Home() {
         {view === 'identity' && auth.isAdmin && <IdentityAccess />}
         {view === 'portfolio-budgets' && auth.isAdmin && <PortfolioBudgets />}
         {view === 'project-templates' && auth.isAdmin && <ProjectTemplates />}
-        {view !== 'knowledge' && !(['clients', 'identity', 'portfolio-budgets', 'project-templates'] as AppView[]).includes(view) && (['prompts', 'models', 'usage'] as AppView[]).includes(view) && auth.isAdmin && <AdminConsole view={view as AdminView} organizationName={auth.organizationName} />}
+        {view === 'team' && auth.isManager && <Team organizationName={auth.organizationName} />}
+        {view === 'prompts' && auth.isAdmin && <PromptStudio organizationName={auth.organizationName} />}
+        {(['models', 'usage'] as AppView[]).includes(view) && auth.isAdmin && <AdminConsole view={view as AdminView} organizationName={auth.organizationName} />}
 
         <nav className="mobile-tabs" aria-label="Mobile navigation">
           <button className={view === 'pipeline' ? 'active' : ''} onClick={() => setView('pipeline')}><Workflow size={19} /><span>Inspect</span></button>
