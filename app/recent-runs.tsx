@@ -3,7 +3,7 @@
 import { ChevronDown, Clock3, FileSearch, History, LoaderCircle, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { API_URL } from './api-config';
-import { getClerkToken, type AirisAuthState } from './clerk-auth';
+import { getClerkToken, type VisinexaAuthState } from './clerk-auth';
 import { HistoryEvidenceImage } from './history-evidence';
 import { profileLabel } from './inspection-profiles';
 import type { InspectionProfile, InspectionPurpose } from './pipeline-run';
@@ -24,7 +24,7 @@ export type RunSummary = {
 };
 
 type Props = {
-  auth: AirisAuthState;
+  auth: VisinexaAuthState;
   purpose: InspectionPurpose;
   orgId?: string;
   projectId?: string;

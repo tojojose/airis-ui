@@ -29,11 +29,12 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AdminConsole, type AdminView } from './admin-console';
 import { API_URL } from './api-config';
-import { ClerkAuth, getClerkToken, type AirisAuthState } from './clerk-auth';
+import { ClerkAuth, getClerkToken, type VisinexaAuthState } from './clerk-auth';
 import { KnowledgeBasePage } from './knowledge-base/knowledge-base-page';
 import { ClientManagement } from './client-management';
 import { InspectionHistory } from './inspection-history';
 import { IdentityAccess } from './identity-access';
+import { Administrators } from './administrators';
 import { PipelineRun } from './pipeline-run';
 import { PortfolioBudgets } from './portfolio-budgets';
 import { ProjectTemplates } from './project-templates';
@@ -86,10 +87,54 @@ const profiles = [
   },
 ];
 
-type PortfolioView = 'clients' | 'identity' | 'portfolio-budgets' | 'project-templates';
+type PortfolioView = 'clients' | 'identity' | 'administrators' | 'portfolio-budgets' | 'project-templates';
 type AppView = 'analyze' | 'pipeline' | 'pipeline-history' | 'evaluation' | 'evaluation-history' | 'team' | PortfolioView | AdminView;
-const adminViews: AppView[] = ['clients', 'identity', 'portfolio-budgets', 'project-templates', 'knowledge', 'prompts', 'models', 'usage'];
-const initialAuth: AirisAuthState = { ready: false, signedIn: false, isAdmin: false, isManager: false, organizationId: null, organizationSlug: null, organizationName: 'Operations workspace' };
+const adminViews: AppView[] = ['clients', 'identity', 'administrators', 'portfolio-budgets', 'project-templates', 'knowledge', 'prompts', 'models', 'usage'];
+const initialAuth: VisinexaAuthState = { ready: false, signedIn: false, userId: null, isAdmin: false, isManager: false, organizationId: null, organizationSlug: null, organizationName: 'Operations workspace' };
+
+// ---------------------------------------------------------------- branding
+// Visinexa is the OPERATOR identity: it belongs on the sign-in screen and in
+// admin chrome only. A client signing in sees their OWN organization and no
+// vendor mark at all - see plans/07-visinexa-rebrand.md for why.
+function VisinexaMark({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden="true">
+      <rect x="5" y="8" width="30" height="3.2" rx="1.6" fill="currentColor" />
+      <g fill="none" stroke="currentColor" strokeWidth="3.3" strokeLinecap="round" opacity="0.82">
+        <path d="M8 15 L20 32" />
+        <path d="M32 15 L20 32" />
+      </g>
+    </svg>
+  );
+}
+
+function VisinexaLockup() {
+  return (
+    <div className="brand-lockup">
+      <div className="brand-mark"><VisinexaMark /></div>
+      <div><strong>visinexa</strong><span>vision governance</span></div>
+    </div>
+  );
+}
+
+function WorkspaceBrand({ isAdmin, organizationName }: { isAdmin: boolean; organizationName: string }) {
+  if (isAdmin) {
+    return (
+      <div className="brand-lockup">
+        <div className="brand-mark"><VisinexaMark /></div>
+        <div><strong>visinexa</strong><span>operations</span></div>
+      </div>
+    );
+  }
+  // White-label: the client's own initial and name, no vendor branding.
+  const initial = (organizationName || 'W').trim().charAt(0).toUpperCase();
+  return (
+    <div className="brand-lockup">
+      <div className="brand-mark client-mark" aria-hidden="true">{initial}</div>
+      <div><strong className="client-brand-name">{organizationName}</strong><span>safety compliance</span></div>
+    </div>
+  );
+}
 
 export default function Home() {
   const [profileId, setProfileId] = useState('safety');
@@ -100,7 +145,7 @@ export default function Home() {
   const [dragging, setDragging] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [auth, setAuth] = useState<AirisAuthState>(initialAuth);
+  const [auth, setAuth] = useState<VisinexaAuthState>(initialAuth);
   const [view, setView] = useState<AppView>('pipeline');
   const [inspectionScope, setInspectionScope] = useState({ orgId: '', orgName: '', projectId: '', projectName: '' });
   const cameraInput = useRef<HTMLInputElement>(null);
@@ -108,7 +153,7 @@ export default function Home() {
   const profile = useMemo(() => profiles.find((item) => item.id === profileId) ?? profiles[0], [profileId]);
   const visibleFindings = useMemo(() => result?.findings.filter((finding) =>
     finding.display_status !== 'hidden_refuted' && finding.verification_status !== 'refuted') ?? [], [result]);
-  const handleAuthChange = useCallback((next: AirisAuthState) => {
+  const handleAuthChange = useCallback((next: VisinexaAuthState) => {
     setAuth(next);
     if (!next.isAdmin) setView((current) => adminViews.includes(current as AdminView) ? 'pipeline' : current);
   }, []);
@@ -190,13 +235,13 @@ export default function Home() {
   if (!auth.signedIn) {
     return <main className="signed-out-shell">
       <header className="signed-out-header">
-        <div className="brand-lockup"><div className="brand-mark"><ShieldCheck size={22} strokeWidth={2.2} /></div><div><strong>airis</strong><span>vision governance</span></div></div>
+        <VisinexaLockup />
         <span className="signed-out-security">Authorized access only</span>
       </header>
       <section className="signed-out-card" aria-labelledby="signed-out-title">
         <div className="signed-out-mark"><ShieldCheck size={34} strokeWidth={1.8} /></div>
         <p className="kicker">SECURE WORKSPACE</p>
-        <h1 id="signed-out-title">Sign in to Airis</h1>
+        <h1 id="signed-out-title">Sign in to Visinexa</h1>
         <p>Access inspections, project history, and approved safety information through your authorized organization.</p>
         <ClerkAuth onChange={handleAuthChange} />
       </section>
@@ -206,7 +251,7 @@ export default function Home() {
   return (
     <main className="app-shell">
       <aside className={`sidebar ${auth.isAdmin ? 'admin-sidebar' : ''}`}>
-        <div className="brand-lockup"><div className="brand-mark"><ShieldCheck size={22} strokeWidth={2.2} /></div><div><strong>airis</strong><span>vision governance</span></div></div>
+        <WorkspaceBrand isAdmin={auth.isAdmin} organizationName={auth.organizationName} />
         <nav aria-label="Primary navigation">
           {auth.isAdmin && <p className="nav-section nav-section-first">SOLUTION DISCOVERY</p>}
           <button className={`nav-item ${view === 'pipeline' ? 'active' : ''}`} onClick={() => setView('pipeline')}><Workflow size={18} /><span>New Inspection</span></button>
@@ -218,12 +263,13 @@ export default function Home() {
             <button className={`nav-item subnav-item ${view === 'identity' ? 'active' : ''}`} onClick={() => setView('identity')}><UserRoundCog size={15} /><span>Identity &amp; Access</span></button>
             <button className={`nav-item subnav-item ${view === 'portfolio-budgets' ? 'active' : ''}`} onClick={() => setView('portfolio-budgets')}><CircleDollarSign size={15} /><span>Budgets &amp; Usage</span></button>
             <button className={`nav-item subnav-item ${view === 'project-templates' ? 'active' : ''}`} onClick={() => setView('project-templates')}><Layers3 size={15} /><span>Project Templates</span></button>
-            <p className="nav-section">AI GOVERNANCE</p>
+            <p className="nav-section">GOVERNANCE</p>
             <button className={`nav-item ${view === 'knowledge' ? 'active' : ''}`} onClick={() => setView('knowledge')}><BookOpenText size={18} /><span>Knowledge Base</span></button>
             <button className={`nav-item ${view === 'prompts' ? 'active' : ''}`} onClick={() => setView('prompts')}><FilePenLine size={18} /><span>Prompt Studio</span></button>
             <button className={`nav-item ${view === 'models' ? 'active' : ''}`} onClick={() => setView('models')}><Bot size={18} /><span>Models</span></button>
             <button className={`nav-item ${view === 'evaluation' ? 'active' : ''}`} onClick={() => { setInspectionScope({ orgId: '', orgName: '', projectId: '', projectName: '' }); setView('evaluation'); }}><FlaskConical size={18} /><span>Evaluation Lab</span></button>
             <button className={`nav-item subnav-item ${view === 'evaluation-history' ? 'active' : ''}`} onClick={() => setView('evaluation-history')}><History size={15} /><span>Evaluation History</span></button>
+            <button className={`nav-item ${view === 'administrators' ? 'active' : ''}`} onClick={() => setView('administrators')}><ShieldCheck size={15} /><span>Administrators</span></button>
             <p className="nav-section">USAGE ANALYTICS</p>
             <button className={`nav-item ${view === 'usage' ? 'active' : ''}`} onClick={() => setView('usage')}><CircleDollarSign size={18} /><span>Usage &amp; Cost</span></button>
           </>}
@@ -234,14 +280,14 @@ export default function Home() {
         <header className="topbar">
           <div className="topbar-left">
             <div>
-              <div className="eyebrow">{auth.isAdmin ? 'AIRIS ADMIN' : 'VISION GOVERNANCE'}</div>
+              <div className="eyebrow">{auth.isAdmin ? 'VISINEXA OPERATIONS' : 'SAFETY COMPLIANCE'}</div>
               <div className="workspace-title">{topbarOrganizationName}</div>
             </div>
           </div>
           <div className="topbar-actions">
             <span className="connection"><span /> API connected</span>
             <NotificationCenter auth={auth} />
-            {auth.isAdmin && <div className="persona-card topbar-persona"><span className="admin">A</span><div><strong>Airis Admin</strong><small>{auth.organizationName}</small></div></div>}
+            {auth.isAdmin && <div className="persona-card topbar-persona"><span className="admin">V</span><div><strong>Visinexa Admin</strong><small>{auth.organizationName}</small></div></div>}
             <ClerkAuth onChange={handleAuthChange} />
           </div>
         </header>
@@ -252,7 +298,7 @@ export default function Home() {
               <div>
                 <p className="kicker">VISUAL INTELLIGENCE · LIVE</p>
                 <h1>{result ? 'Inspection evidence' : 'What would you like to inspect?'}</h1>
-                <p className="lede">{result ? 'Review the detected risks, confidence, and supporting context before taking action.' : 'Capture or upload an image. Airis applies your organization’s visual policies and supporting knowledge.'}</p>
+                <p className="lede">{result ? 'Review the detected risks, confidence, and supporting context before taking action.' : 'Capture or upload an image. Your organization’s visual policies and supporting knowledge are applied automatically.'}</p>
               </div>
               <div className="live-pill"><Activity size={15} /> Multi-device ready</div>
             </div>
@@ -363,6 +409,7 @@ export default function Home() {
         {view === 'knowledge' && auth.isAdmin && <KnowledgeBasePage organizationName={auth.organizationName} />}
         {view === 'clients' && auth.isAdmin && <ClientManagement auth={auth} onInspect={(orgId, projectId) => { setInspectionScope({ orgId, orgName: '', projectId, projectName: '' }); setView('pipeline'); }} onHistory={(orgId, projectId) => { setInspectionScope({ orgId, orgName: '', projectId, projectName: '' }); setView('pipeline-history'); }} />}
         {view === 'identity' && auth.isAdmin && <IdentityAccess />}
+        {view === 'administrators' && auth.isAdmin && <Administrators currentUserId={auth.userId} />}
         {view === 'portfolio-budgets' && auth.isAdmin && <PortfolioBudgets />}
         {view === 'project-templates' && auth.isAdmin && <ProjectTemplates />}
         {view === 'team' && auth.isManager && <Team organizationName={auth.organizationName} />}

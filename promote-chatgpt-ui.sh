@@ -202,9 +202,18 @@ local_image="airis-ui:verify-${image_tag}"
 ecr_url="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}"
 remote_image="${ecr_url}:${image_tag}"
 
+# The API host is baked into the static bundle at build time, so it is a
+# build-arg, not runtime config. Defaulting to api.visinexa.com keeps the
+# visinexa app off trominos hostnames entirely. Both hosts front the SAME
+# API Gateway and the backend's cors_origins already allows the
+# app.visinexa.com origin either way, so this is reversible with one env var:
+#   API_HOST_URL=https://api.trominos.com ./promote-chatgpt-ui.sh <zip>
+API_HOST_URL="${API_HOST_URL:-https://api.visinexa.com}"
+echo "Building against API host: ${API_HOST_URL}"
+
 docker buildx build \
   --platform linux/amd64 \
-  --build-arg NEXT_PUBLIC_TROMINOS_API_URL=https://api.trominos.com \
+  --build-arg NEXT_PUBLIC_TROMINOS_API_URL="$API_HOST_URL" \
   --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" \
   --load \
   --tag "$local_image" \

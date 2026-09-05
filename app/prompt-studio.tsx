@@ -40,7 +40,7 @@ const STAGE_LABEL: Record<string, string> = {
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = await getClerkToken(true);
-  if (!token) throw new Error('Sign in and select Airis Admin to manage prompts.');
+  if (!token) throw new Error('Sign in and select Visinexa Admin to manage prompts.');
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(init.headers || {}) },

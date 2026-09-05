@@ -1,12 +1,14 @@
-const productUrl = 'https://app.trominos.com';
+// The marketing site is www.visinexa.com; the product it links out to is a
+// DIFFERENT host. Pointing this at www would loop the CTA back here.
+const productUrl = 'https://app.visinexa.com';
 
 export default function Home() {
   return (
     <main>
       <header className="site-header">
-        <a className="brand" href="#top" aria-label="Airis home">
-          <span className="brand-mark"><i /><i /><i /></span>
-          <span>AIRIS</span>
+        <a className="brand" href="#top" aria-label="Visinexa home">
+          <span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40" width="29" height="29"><rect x="5" y="8" width="30" height="3.2" rx="1.6" fill="currentColor" /><g fill="none" stroke="#FD5411" strokeWidth="3.3" strokeLinecap="round"><path d="M8 15 L20 32" /><path d="M32 15 L20 32" /></g></svg></span>
+          <span>VISINEXA</span>
         </a>
         <nav className="desktop-nav" aria-label="Primary navigation">
           <a href="#platform">Platform</a>
@@ -21,7 +23,7 @@ export default function Home() {
       </header>
 
       <section className="campaign-section campaign-hero" id="top">
-        <div className="campaign-image" role="img" aria-label="Construction professionals using Airis visual intelligence at an active site" />
+        <div className="campaign-image" role="img" aria-label="Construction professionals using Visinexa visual intelligence at an active site" />
         <div className="campaign-hero-copy">
           <h1><em>Human-led</em> visual compliance intelligence</h1>
         </div>
@@ -34,7 +36,7 @@ export default function Home() {
       <section className="campaign-note">
         <p>ASSISTIVE BY DESIGN</p>
         <blockquote>“AI finds the signal. People make the decision.”</blockquote>
-        <span>Airis does not certify compliance or replace professional inspections. It helps qualified teams review more visual evidence with consistent context.</span>
+        <span>Visinexa does not certify compliance or replace professional inspections. It helps qualified teams review more visual evidence with consistent context.</span>
       </section>
 
       <section className="hero">
@@ -42,18 +44,18 @@ export default function Home() {
           <p className="eyebrow"><span /> HUMAN-LED VISUAL INTELLIGENCE</p>
           <h2>See potential risks <em>before</em> they become incidents.</h2>
           <p className="hero-lede">
-            Airis analyzes construction images and video against the rules that apply where you operate—then gives qualified reviewers explainable findings, evidence, and confidence scores.
+            Visinexa analyzes construction images and video against the rules that apply where you operate—then gives qualified reviewers explainable findings, evidence, and confidence scores.
           </p>
           <div className="hero-actions">
             <a className="button" href="#contact">Book a construction pilot <span>→</span></a>
-            <a className="button button-secondary" href={productUrl}>Open Airis <span>↗</span></a>
+            <a className="button button-secondary" href={productUrl}>Open Visinexa <span>↗</span></a>
           </div>
-          <p className="human-note"><b>Human in the loop.</b> Airis surfaces potential violations; authorized professionals make every final decision.</p>
+          <p className="human-note"><b>Human in the loop.</b> Visinexa surfaces potential violations; authorized professionals make every final decision.</p>
         </div>
 
-        <div className="hero-product" aria-label="Airis finding preview">
+        <div className="hero-product" aria-label="Visinexa finding preview">
           <div className="product-topbar">
-            <span className="mini-brand">AIRIS / SITE 04</span>
+            <span className="mini-brand">VISINEXA / SITE 04</span>
             <span className="live-pill"><i /> ANALYSIS COMPLETE</span>
           </div>
           <div className="site-scene">
@@ -73,16 +75,16 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="signal-strip" aria-label="Airis platform capabilities">
+      <section className="signal-strip" aria-label="Visinexa platform capabilities">
         <p>ONE CONFIGURABLE ENGINE</p>
         <div><span>Images</span><i>+</i><span>Video</span><i>+</i><span>Regulatory knowledge</span><i>+</i><span>Human judgment</span></div>
       </section>
 
       <section className="section platform" id="platform">
         <div className="section-heading">
-          <p className="eyebrow"><span /> THE AIRIS PLATFORM</p>
+          <p className="eyebrow"><span /> THE VISINEXA PLATFORM</p>
           <h2>From visual evidence to an informed human decision.</h2>
-          <p>Airis brings visual models, approved knowledge, and accountable review into one traceable workflow.</p>
+          <p>Visinexa brings visual models, approved knowledge, and accountable review into one traceable workflow.</p>
         </div>
         <div className="workflow-grid">
           {[
@@ -103,7 +105,7 @@ export default function Home() {
         <div className="context-copy">
           <p className="eyebrow light"><span /> CONFIGURABLE COMPLIANCE CONTEXT</p>
           <h2>The right analysis starts with the right rules.</h2>
-          <p>Airis builds a site-specific intelligence context by matching each inspection with applicable regulations, engineering requirements, industry standards, company policies, and project inputs. The analysis is grounded in the rules and operating conditions that matter for that location—not a generic checklist.</p>
+          <p>Visinexa builds a site-specific intelligence context by matching each inspection with applicable regulations, engineering requirements, industry standards, company policies, and project inputs. The analysis is grounded in the rules and operating conditions that matter for that location—not a generic checklist.</p>
           <ul className="context-points">
             <li><b>Traceable sources</b><span>Record the source and version used for every finding.</span></li>
             <li><b>Project-level control</b><span>Add customer policies, procedures, and licensed standards.</span></li>
@@ -172,7 +174,7 @@ export default function Home() {
           <h2>Confidence is evidence—not a verdict.</h2>
         </div>
         <div className="review-principles">
-          <article><b>Potential finding</b><p>Airis clearly distinguishes an AI observation from a confirmed violation.</p></article>
+          <article><b>Potential finding</b><p>Visinexa clearly distinguishes an AI observation from a confirmed violation.</p></article>
           <article><b>Evidence + confidence</b><p>Reviewers see the visual basis, cited context, and model confidence together.</p></article>
           <article><b>Accountable decision</b><p>An authorized human approves, dismisses, or escalates every material finding.</p></article>
         </div>
@@ -182,14 +184,14 @@ export default function Home() {
         <p>START WITH ONE SITE</p>
         <h2>Put your visual data to work.</h2>
         <span>Begin with one construction workflow and one measurable safety or compliance objective.</span>
-        <div className="hero-actions"><a className="button light-button" href={productUrl}>Open Airis <b>↗</b></a><a className="pilot-link" href="#top">Plan a pilot <b>→</b></a></div>
+        <div className="hero-actions"><a className="button light-button" href={productUrl}>Open Visinexa <b>↗</b></a><a className="pilot-link" href="#top">Plan a pilot <b>→</b></a></div>
       </section>
 
       <footer>
-        <a className="brand footer-brand" href="#top"><span className="brand-mark"><i /><i /><i /></span><span>AIRIS</span></a>
+        <a className="brand footer-brand" href="#top"><span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40" width="29" height="29"><rect x="5" y="8" width="30" height="3.2" rx="1.6" fill="currentColor" /><g fill="none" stroke="#FD5411" strokeWidth="3.3" strokeLinecap="round"><path d="M8 15 L20 32" /><path d="M32 15 L20 32" /></g></svg></span><span>VISINEXA</span></a>
         <p>Human-led visual intelligence by Trominos.</p>
         <div><a href="#platform">Platform</a><a href="#compliance">Compliance</a><a href="#industries">Industries</a><a href={productUrl}>Product sign in ↗</a></div>
-        <small>© 2026 Trominos. Airis findings support human review and are not legal determinations.</small>
+        <small>© 2026 Trominos. Visinexa findings support human review and are not legal determinations.</small>
       </footer>
     </main>
   );

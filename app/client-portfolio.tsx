@@ -24,7 +24,7 @@ export function ClientPortfolio({ onInspect, onHistory }: {
 
   useEffect(() => { void (async () => {
     try {
-      const token = await getClerkToken(true); if (!token) throw new Error('Sign in as an Airis administrator.');
+      const token = await getClerkToken(true); if (!token) throw new Error('Sign in as an Visinexa administrator.');
       const response = await fetch(`${API_URL}/v1/admin/clients`, { headers: { Authorization: `Bearer ${token}` } });
       const payload = await response.json() as { clients?: Client[]; detail?: string };
       if (!response.ok) throw new Error(payload.detail || 'Could not load clients.');
@@ -36,7 +36,7 @@ export function ClientPortfolio({ onInspect, onHistory }: {
   async function openClient(client: Client) {
     setSelected(client); setProjects([]); setLoading(true); setError(null);
     try {
-      const token = await getClerkToken(true); if (!token) throw new Error('Sign in as an Airis administrator.');
+      const token = await getClerkToken(true); if (!token) throw new Error('Sign in as an Visinexa administrator.');
       const response = await fetch(`${API_URL}/v1/admin/clients/${encodeURIComponent(client.org_id)}/projects`, { headers: { Authorization: `Bearer ${token}` } });
       const payload = await response.json() as { projects?: InspectionProject[]; detail?: string };
       if (!response.ok) throw new Error(payload.detail || 'Could not load projects.');
@@ -49,7 +49,7 @@ export function ClientPortfolio({ onInspect, onHistory }: {
     if (!selected || !editing) return;
     setSaving(true); setError(null);
     try {
-      const token = await getClerkToken(true); if (!token) throw new Error('Sign in as an Airis administrator.');
+      const token = await getClerkToken(true); if (!token) throw new Error('Sign in as an Visinexa administrator.');
       const response = await fetch(`${API_URL}/v1/admin/clients/${encodeURIComponent(selected.org_id)}/projects/${encodeURIComponent(editing.project_id)}`, {
         method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(editing),

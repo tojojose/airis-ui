@@ -36,9 +36,9 @@ export function AdminConsole({ view, organizationName }: { view: AdminView; orga
       setLoading(true); setError(null);
       try {
         const token = await getClerkToken(true);
-        if (!token) throw new Error('Sign in and select Airis Admin to load this page.');
+        if (!token) throw new Error('Sign in and select the Visinexa admin organization to load this page.');
         const response = await fetch(`${API_URL}${config.endpoint}`, { headers: { Authorization: `Bearer ${token}` } });
-        if (!response.ok) throw new Error(response.status === 403 ? 'This organization does not have Airis administrator access.' : `Admin API returned ${response.status}.`);
+        if (!response.ok) throw new Error(response.status === 403 ? 'This organization does not have Visinexa administrator access.' : `Admin API returned ${response.status}.`);
         const payload = await response.json() as Record<string, unknown>;
         const collection = payload[config.collection];
         if (active) setData(Array.isArray(collection) ? collection as JsonRecord[] : []);
@@ -54,7 +54,7 @@ export function AdminConsole({ view, organizationName }: { view: AdminView; orga
   return (
     <div className="admin-page">
       <header className="admin-heading"><div><p className="kicker">{config.eyebrow}</p><h1>{config.title}</h1><p>{config.description}</p></div><div className="admin-heading-actions"><span className="admin-scope"><ShieldAlert size={15} /> {organizationName}</span><button onClick={() => setRefresh((value) => value + 1)} aria-label="Refresh admin data"><RefreshCw size={16} /></button></div></header>
-      <div className="admin-metric-row"><article><span>Current scope</span><strong>Global platform</strong><small>Airis administrator access</small></article><article><span>Live records</span><strong>{loading ? 'Loading…' : summary}</strong><small>Read from the Trominos API</small></article><article><span>Authorization</span><strong>Clerk organization</strong><small>Backend-enforced permissions</small></article></div>
+      <div className="admin-metric-row"><article><span>Current scope</span><strong>Global platform</strong><small>Visinexa administrator access</small></article><article><span>Live records</span><strong>{loading ? 'Loading…' : summary}</strong><small>Read from the Trominos API</small></article><article><span>Authorization</span><strong>Clerk organization</strong><small>Backend-enforced permissions</small></article></div>
       <section className="admin-table-card">
         <div className="admin-table-title"><div className="admin-table-icon"><Icon size={20} /></div><div><strong>{config.title}</strong><span>Live configuration</span></div></div>
         {loading ? <div className="admin-state"><LoaderCircle className="spinner" size={25} /><p>Loading administrator data…</p></div> : error ? <div className="admin-state error"><ShieldAlert size={25} /><p>{error}</p><button onClick={() => setRefresh((value) => value + 1)}>Try again</button></div> : <AdminRows view={view} rows={data} />}

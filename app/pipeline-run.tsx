@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { API_URL } from './api-config';
-import { getClerkToken, type AirisAuthState } from './clerk-auth';
+import { getClerkToken, type VisinexaAuthState } from './clerk-auth';
 import { INSPECTION_PROFILES, profileInfo } from './inspection-profiles';
 import { RecentRuns } from './recent-runs';
 import { findingOutcome, groupFindings, groupSummary } from './finding-groups';
@@ -132,7 +132,7 @@ export type InspectionProject = {
 };
 type Client = { org_id: string; name: string; status: string };
 type Props = {
-  auth: AirisAuthState;
+  auth: VisinexaAuthState;
   purpose?: InspectionPurpose;
   initialOrgId?: string;
   initialProjectId?: string;

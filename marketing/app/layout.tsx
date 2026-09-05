@@ -13,17 +13,17 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://portal.trominos.com'),
-  title: 'Airis | Human-led visual compliance intelligence',
-  description: 'Airis analyzes construction images and video against the rules that apply where you operate, with explainable findings for human review.',
+  metadataBase: new URL('https://www.visinexa.com'),
+  title: 'Visinexa | Human-led visual compliance intelligence',
+  description: 'Visinexa analyzes construction images and video against the rules that apply where you operate, with explainable findings for human review.',
   openGraph: {
-    title: 'Airis | Human-led visual compliance intelligence',
+    title: 'Visinexa | Human-led visual compliance intelligence',
     description: 'Visual evidence, jurisdiction-aware context, and confidence scores for accountable human review.',
-    images: [{ url: '/og.png', width: 1672, height: 941, alt: 'Airis visual compliance intelligence for construction' }],
+    images: [{ url: '/og.png', width: 1672, height: 941, alt: 'Visinexa visual compliance intelligence for construction' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Airis | Human-led visual compliance intelligence',
+    title: 'Visinexa | Human-led visual compliance intelligence',
     description: 'Visual evidence, jurisdiction-aware context, and confidence scores for accountable human review.',
     images: ['/og.png'],
   },

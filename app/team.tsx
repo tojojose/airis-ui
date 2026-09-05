@@ -7,10 +7,10 @@
  * this component never sends an org id. Three jobs:
  *
  *   INVITE     an inspector goes out immediately; a second manager is queued
- *              for Airis. The screen says which happened, because "sent" and
- *              "waiting on Airis" are different promises to make to a
+ *              for Visinexa. The screen says which happened, because "sent" and
+ *              "waiting on Visinexa" are different promises to make to a
  *              colleague.
- *   ROLE       between the two client roles. Airis staff rows are read-only,
+ *   ROLE       between the two client roles. Visinexa staff rows are read-only,
  *              and so is the manager's own row.
  *   ASSIGN     which projects an inspector may work on. An inspector with no
  *              projects can do nothing at all, so this is the screen that puts
@@ -87,7 +87,7 @@ export function Team({ organizationName }: { organizationName: string }) {
     setInvite({ email: '', role: INSPECTOR, project_ids: [] });
     return result.status === 'invited'
       ? `Invitation sent to ${result.email}. They can start as soon as they accept it${result.project_ids.length ? `, on ${result.project_ids.length} project(s)` : ' — assign them a project so they have something to work on'}.`
-      : `Sent to Airis for approval. ${result.email} will be invited as a Client Manager once an administrator approves it.`;
+      : `Sent to Visinexa for approval. ${result.email} will be invited as a Client Manager once an administrator approves it.`;
   });
 
   const changeRole = (member: Member, role: string) => act(async () => {
@@ -134,7 +134,7 @@ export function Team({ organizationName }: { organizationName: string }) {
       {loading ? <div className="admin-state"><LoaderCircle className="spinner" size={25} /><p>Loading your team…</p></div> : (
         <div className="identity-content">
           <article className="identity-card">
-            <header><UserPlus size={18} /><div><h2>Add someone</h2><p>An inspector is invited straight away. A second Client Manager is sent to Airis for approval first.</p></div></header>
+            <header><UserPlus size={18} /><div><h2>Add someone</h2><p>An inspector is invited straight away. A second Client Manager is sent to Visinexa for approval first.</p></div></header>
             <div className="identity-form">
               <label><span>Email address</span>
                 <input type="email" value={invite.email} placeholder="person@company.com"
@@ -151,7 +151,7 @@ export function Team({ organizationName }: { organizationName: string }) {
               {invite.role === INSPECTOR && (
                 <label className="wide"><span>Projects they may work on</span>
                   <div className="team-projects">
-                    {projects.length === 0 ? <em>No projects yet — an Airis administrator sets those up.</em> : projects.map((project) => (
+                    {projects.length === 0 ? <em>No projects yet — an Visinexa administrator sets those up.</em> : projects.map((project) => (
                       <button type="button" key={project.project_id}
                               className={invite.project_ids.includes(project.project_id) ? 'chip on' : 'chip'}
                               onClick={() => setInvite({ ...invite, project_ids: toggle(invite.project_ids, project.project_id) })}>
@@ -162,13 +162,13 @@ export function Team({ organizationName }: { organizationName: string }) {
               )}
               <button className="primary-button" disabled={busy || !invite.email.trim()} onClick={() => void sendInvite()}>
                 {busy ? <LoaderCircle className="spinner" size={15} /> : <Send size={15} />}
-                {invite.role === INSPECTOR ? 'Send invitation' : 'Send to Airis'}
+                {invite.role === INSPECTOR ? 'Send invitation' : 'Send to Visinexa'}
               </button>
             </div>
           </article>
 
           <article className="identity-card">
-            <header><Users size={18} /><div><h2>People</h2><p>Role changes take effect on their next sign-in. Airis staff rows are managed by Airis.</p></div></header>
+            <header><Users size={18} /><div><h2>People</h2><p>Role changes take effect on their next sign-in. Visinexa staff rows are managed by Visinexa.</p></div></header>
             {members.map((member) => (
               <div className="identity-row team-row" key={member.user_id}>
                 <div>

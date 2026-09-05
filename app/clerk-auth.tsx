@@ -3,9 +3,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { API_URL } from './api-config';
 
-export type AirisAuthState = {
+export type VisinexaAuthState = {
   ready: boolean;
   signedIn: boolean;
+  /** Clerk user id of the signed-in person. Used by the Administrators screen
+   *  to disable "revoke yourself"; the API enforces that guard regardless. */
+  userId: string | null;
   isAdmin: boolean;
   /** Client Manager in the active organization. Probed from the API rather
    *  than read out of the token: the API is what enforces it, and a claim the
@@ -17,10 +20,11 @@ export type AirisAuthState = {
 };
 
 type ClerkOrganization = { id: string; slug?: string | null; name?: string | null };
-type ClerkResources = { user?: unknown; organization?: ClerkOrganization | null };
+type ClerkUser = { id?: string | null };
+type ClerkResources = { user?: ClerkUser | null; organization?: ClerkOrganization | null };
 type ClerkBrowser = {
   load: () => Promise<void>;
-  user?: unknown;
+  user?: ClerkUser | null;
   organization?: ClerkOrganization | null;
   session?: { getToken: (options?: { skipCache?: boolean }) => Promise<string | null> };
   openSignIn: () => void;
@@ -36,17 +40,19 @@ declare global { interface Window { Clerk?: ClerkBrowser; } }
 const clerkScript = 'https://inspired-caribou-5743.clerk.accounts.dev/npm/@clerk/clerk-js@5/dist/clerk.browser.js';
 const ADMIN_ORG_ID = 'org_3IPVJfrTM15wLLm9HHMT5ovDxDi';
 
-export function isAirisAdmin(organization?: ClerkOrganization | null) {
+export function isVisinexaAdmin(organization?: ClerkOrganization | null) {
   return Boolean(organization && (organization.id === ADMIN_ORG_ID || organization.slug === 'trominos-admin'));
 }
 
-function toAuthState(ready: boolean, resources?: ClerkResources): AirisAuthState {
+function toAuthState(ready: boolean, resources?: ClerkResources): VisinexaAuthState {
   const organization = resources?.organization ?? window.Clerk?.organization ?? null;
-  const signedIn = Boolean(resources?.user ?? window.Clerk?.user);
+  const user = resources?.user ?? window.Clerk?.user ?? null;
+  const signedIn = Boolean(user);
   return {
     ready,
     signedIn,
-    isAdmin: isAirisAdmin(organization),
+    userId: user?.id ?? null,
+    isAdmin: isVisinexaAdmin(organization),
     isManager: false,
     organizationId: organization?.id ?? null,
     organizationSlug: organization?.slug ?? null,
@@ -58,8 +64,8 @@ export async function getClerkToken(forceRefresh = false) {
   return window.Clerk?.session?.getToken(forceRefresh ? { skipCache: true } : undefined) ?? null;
 }
 
-export function ClerkAuth({ onChange }: { onChange?: (state: AirisAuthState) => void }) {
-  const [state, setState] = useState<AirisAuthState>(() => ({ ready: false, signedIn: false, isAdmin: false, isManager: false, organizationId: null, organizationSlug: null, organizationName: 'Operations workspace' }));
+export function ClerkAuth({ onChange }: { onChange?: (state: VisinexaAuthState) => void }) {
+  const [state, setState] = useState<VisinexaAuthState>(() => ({ ready: false, signedIn: false, userId: null, isAdmin: false, isManager: false, organizationId: null, organizationSlug: null, organizationName: 'Operations workspace' }));
   const userButton = useRef<HTMLDivElement>(null);
   const orgSwitcher = useRef<HTMLDivElement>(null);
 

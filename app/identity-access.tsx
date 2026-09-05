@@ -10,14 +10,14 @@ type AccessRequest = { request_id: string; org_id: string; email: string; role: 
 type Member = { id: string; role: string; public_user_data?: { user_id?: string; identifier?: string; first_name?: string; last_name?: string } };
 type Readiness = { clerk_admin_configured: boolean; webhook_configured: boolean; system_admins: number };
 // Two assignable roles (docs/auth.md). org:admin is deliberately absent: it is
-// Clerk's organization-administrator role, held in a client org only by Airis
+// Clerk's organization-administrator role, held in a client org only by Visinexa
 // staff, and the API refuses to assign it to a customer.
 const roles = [
   { key: 'org:client_manager', label: 'Client Manager' },
   { key: 'org:inspector', label: 'Inspector' },
 ];
 const roleLabel = (key: string) => roles.find((role) => role.key === key)?.label
-  || (key === 'org:admin' ? 'Airis staff' : key);
+  || (key === 'org:admin' ? 'Visinexa staff' : key);
 
 export function IdentityAccess() {
   const [clients, setClients] = useState<ClientRecord[]>([]);
@@ -31,7 +31,7 @@ export function IdentityAccess() {
   const [error, setError] = useState<string | null>(null);
 
   const request = useCallback(async (path: string, options: RequestInit = {}) => {
-    const token = await getClerkToken(true); if (!token) throw new Error('Sign in as an Airis administrator.');
+    const token = await getClerkToken(true); if (!token) throw new Error('Sign in as an Visinexa administrator.');
     const response = await fetch(`${API_URL}${path}`, { ...options, headers: { Authorization: `Bearer ${token}`, ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers } });
     const payload = await response.json().catch(() => null) as ({ detail?: string } & Record<string, unknown>) | null;
     if (!response.ok) throw new Error(typeof payload?.detail === 'string' ? payload.detail : `Request failed (${response.status}).`);
@@ -62,7 +62,7 @@ export function IdentityAccess() {
   async function submit() { if (!orgId || !form.email) return; await act(async () => { await request(`/v1/admin/clients/${encodeURIComponent(orgId)}/access-requests`, { method: 'POST', body: JSON.stringify(form) }); setForm({ email: '', role: 'org:inspector', note: '' }); }); }
 
   return <div className="admin-page identity-page">
-    <header className="admin-heading"><div><p className="kicker">IDENTITY GOVERNANCE</p><h1>Identity &amp; Access</h1><p>Approve every new person and control their client role from Airis.</p></div><button className="secondary-button" disabled={busy} onClick={() => void act(() => request('/v1/admin/identity/reconcile', { method: 'POST' }))}><RefreshCw size={15} /> Reconcile</button></header>
+    <header className="admin-heading"><div><p className="kicker">IDENTITY GOVERNANCE</p><h1>Identity &amp; Access</h1><p>Approve every new person and control their client role from Visinexa.</p></div><button className="secondary-button" disabled={busy} onClick={() => void act(() => request('/v1/admin/identity/reconcile', { method: 'POST' }))}><RefreshCw size={15} /> Reconcile</button></header>
     {error && <div className="history-state error"><TriangleAlert size={20} />{error}</div>}
     {readiness && <div className="identity-readiness"><span className={readiness.clerk_admin_configured ? 'ready' : 'attention'}>{readiness.clerk_admin_configured ? <Check size={14} /> : <X size={14} />} Organization management</span><span className={readiness.webhook_configured ? 'ready' : 'attention'}>{readiness.webhook_configured ? <Check size={14} /> : <X size={14} />} Identity updates</span><small>{readiness.system_admins} platform administrator(s)</small></div>}
     <section className="identity-layout">

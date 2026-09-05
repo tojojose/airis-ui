@@ -10,3 +10,6 @@ out/
 *.tfvars
 !*.tfvars.example
 .terraform/
+
+# TypeScript incremental build cache - machine-local, never useful in a diff
+*.tsbuildinfo

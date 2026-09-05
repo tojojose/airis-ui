@@ -3,7 +3,7 @@
 import { ChevronDown, Clock3, FileSearch, FlaskConical, LoaderCircle, RefreshCw, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { API_URL } from './api-config';
-import { getClerkToken, type AirisAuthState } from './clerk-auth';
+import { getClerkToken, type VisinexaAuthState } from './clerk-auth';
 import { HistoryEvidenceImage } from './history-evidence';
 import { profileLabel } from './inspection-profiles';
 import type { InspectionProject, InspectionPurpose } from './pipeline-run';
@@ -47,7 +47,7 @@ function storedFindings(detail: DetailedResult | null): StoredFinding[] {
   return Array.isArray(detail.findings) ? detail.findings : detail.findings.findings || [];
 }
 
-export function InspectionHistory({ auth, purpose, initialOrgId = '', initialProjectId = '', onScopeChange }: { auth: AirisAuthState; purpose: InspectionPurpose; initialOrgId?: string; initialProjectId?: string; onScopeChange?: (scope: { orgId: string; orgName: string; projectId: string; projectName: string }) => void }) {
+export function InspectionHistory({ auth, purpose, initialOrgId = '', initialProjectId = '', onScopeChange }: { auth: VisinexaAuthState; purpose: InspectionPurpose; initialOrgId?: string; initialProjectId?: string; onScopeChange?: (scope: { orgId: string; orgName: string; projectId: string; projectName: string }) => void }) {
   const [clients, setClients] = useState<Client[]>([]);
   const [projects, setProjects] = useState<InspectionProject[]>([]);
   const [orgId, setOrgId] = useState(initialOrgId || auth.organizationId || '');

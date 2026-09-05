@@ -3,14 +3,14 @@
 import { Bell, TriangleAlert, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { API_URL } from './api-config';
-import { getClerkToken, type AirisAuthState } from './clerk-auth';
+import { getClerkToken, type VisinexaAuthState } from './clerk-auth';
 
 type BudgetNotice = {
   org_id: string; project_id: string; scope: string; threshold: number;
   percent: number; month: string; created_at: string; read: boolean;
 };
 
-export function NotificationCenter({ auth }: { auth: AirisAuthState }) {
+export function NotificationCenter({ auth }: { auth: VisinexaAuthState }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<BudgetNotice[]>([]);
 
