@@ -6,19 +6,18 @@
  * Everything here is scoped to the manager's active organization by the API;
  * this component never sends an org id. Three jobs:
  *
- *   INVITE     an inspector goes out immediately; a second manager is queued
- *              for Visinexa. The screen says which happened, because "sent" and
- *              "waiting on Visinexa" are different promises to make to a
- *              colleague.
- *   ROLE       between the two client roles. Visinexa staff rows are read-only,
- *              and so is the manager's own row.
+ *   INVITE     inspectors only, and they go out immediately. Adding a second
+ *              Client Manager is a Visinexa decision, so it is not offered
+ *              here at all rather than offered and refused.
+ *   ROLES      read-only. A manager runs inspectors; their own row is not
+ *              returned by the API, and Visinexa staff rows never were.
  *   ASSIGN     which projects an inspector may work on. An inspector with no
  *              projects can do nothing at all, so this is the screen that puts
  *              someone to work - it leads with that rather than hiding it
  *              behind an edit affordance.
  */
 
-import { AlertTriangle, Check, FolderCheck, LoaderCircle, Send, ShieldCheck, UserPlus, Users } from 'lucide-react';
+import { AlertTriangle, Check, FolderCheck, LoaderCircle, Send, ShieldCheck, UserMinus, UserPlus, Users } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { API_URL } from './api-config';
 import { getClerkToken } from './clerk-auth';
@@ -29,10 +28,22 @@ type Member = {
 };
 type Project = { project_id: string; name?: string };
 type InviteResult = { status: string; email: string; role: string; project_ids: string[] };
+type RemovalResult = { clerk_account_deleted: boolean; account_retained_because: string };
+type Invitation = {
+  invitation_id: string; email: string; role_label: string;
+  created_at: string | number; project_ids: string[];
+};
 
-const MANAGER = 'org:client_manager';
 const INSPECTOR = 'org:inspector';
-const ROLES = [{ key: INSPECTOR, label: 'Inspector' }, { key: MANAGER, label: 'Client Manager' }];
+
+/** Clerk reports created_at as epoch MILLISECONDS, not an ISO string. Slicing
+ *  the first ten characters of it rendered "invited 1788624972". */
+function invitedOn(createdAt: string | number | undefined): string {
+  const ms = typeof createdAt === 'number' ? createdAt : Number(createdAt);
+  if (!ms || Number.isNaN(ms)) return '';
+  const date = new Date(ms < 1e12 ? ms * 1000 : ms);   // tolerate seconds too
+  return Number.isNaN(date.getTime()) ? '' : ` · invited ${date.toISOString().slice(0, 10)}`;
+}
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = await getClerkToken(true);
@@ -48,6 +59,7 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export function Team({ organizationName }: { organizationName: string }) {
   const [members, setMembers] = useState<Member[]>([]);
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [invite, setInvite] = useState({ email: '', role: INSPECTOR, project_ids: [] as string[] });
   const [editing, setEditing] = useState<string>('');
@@ -59,11 +71,13 @@ export function Team({ organizationName }: { organizationName: string }) {
 
   const load = useCallback(async () => {
     try {
-      const [team, projectList] = await Promise.all([
+      const [team, projectList, invited] = await Promise.all([
         api<{ members: Member[] }>('/v1/projects/members'),
         api<{ projects: Project[] }>('/v1/projects'),
+        api<{ invitations: Invitation[] }>('/v1/projects/invitations'),
       ]);
-      setMembers(team.members); setProjects(projectList.projects || []); setError('');
+      setMembers(team.members); setProjects(projectList.projects || []);
+      setInvitations(invited.invitations || []); setError('');
     } catch (caught) { setError(caught instanceof Error ? caught.message : 'Could not load your team.'); }
     finally { setLoading(false); }
   }, []);
@@ -85,16 +99,28 @@ export function Team({ organizationName }: { organizationName: string }) {
       method: 'POST', body: JSON.stringify(invite),
     });
     setInvite({ email: '', role: INSPECTOR, project_ids: [] });
-    return result.status === 'invited'
-      ? `Invitation sent to ${result.email}. They can start as soon as they accept it${result.project_ids.length ? `, on ${result.project_ids.length} project(s)` : ' — assign them a project so they have something to work on'}.`
-      : `Sent to Visinexa for approval. ${result.email} will be invited as a Client Manager once an administrator approves it.`;
+    // Always at least one project now - the API refuses an invitation without
+    // one, so the "you forgot to assign them" branch cannot be reached.
+    return `Invitation sent to ${result.email}. They can start on `
+      + `${result.project_ids.length} project(s) as soon as they accept it.`;
   });
 
-  const changeRole = (member: Member, role: string) => act(async () => {
-    await api(`/v1/projects/members/${encodeURIComponent(member.user_id)}`, {
-      method: 'PATCH', body: JSON.stringify({ role }),
-    });
-    return `${member.identifier || member.user_id} is now ${ROLES.find((r) => r.key === role)?.label}.`;
+  const revokeInvitation = (invitation: Invitation) => act(async () => {
+    await api(`/v1/projects/invitations/${encodeURIComponent(invitation.invitation_id)}`
+      + `?email=${encodeURIComponent(invitation.email)}`, { method: 'DELETE' });
+    return `The invitation to ${invitation.email} has been revoked.`;
+  });
+
+  const removeMember = (member: Member) => act(async () => {
+    const who = member.identifier || member.user_id;
+    const out = await api<RemovalResult>(
+      `/v1/projects/members/${encodeURIComponent(member.user_id)}`, { method: 'DELETE' });
+    // Say which of the two things happened. "Removed" alone would hide the case
+    // where the sign-in was deliberately kept because they belong elsewhere.
+    return out.clerk_account_deleted
+      ? `${who} was removed from ${organizationName} and their sign-in was deleted.`
+      : `${who} was removed from ${organizationName}. Their sign-in was kept`
+        + `${out.account_retained_because ? ` — ${out.account_retained_because}` : ''}.`;
   });
 
   const saveProjects = (member: Member) => act(async () => {
@@ -134,20 +160,14 @@ export function Team({ organizationName }: { organizationName: string }) {
       {loading ? <div className="admin-state"><LoaderCircle className="spinner" size={25} /><p>Loading your team…</p></div> : (
         <div className="identity-content">
           <article className="identity-card">
-            <header><UserPlus size={18} /><div><h2>Add someone</h2><p>An inspector is invited straight away. A second Client Manager is sent to Visinexa for approval first.</p></div></header>
+            <header><UserPlus size={18} /><div><h2>Invite an inspector</h2><p>They are invited straight away and can work only on the projects you assign. Adding another Client Manager is a Visinexa decision — ask your Visinexa contact.</p></div></header>
             <div className="identity-form">
               <label><span>Email address</span>
                 <input type="email" value={invite.email} placeholder="person@company.com"
                        onChange={(event) => setInvite({ ...invite, email: event.target.value })} /></label>
-              <label><span>Role</span>
-                <select value={invite.role} onChange={(event) => setInvite({
-                  ...invite, role: event.target.value,
-                  // A manager is not scoped to projects, so a selection made
-                  // before switching role would be sent and silently ignored.
-                  project_ids: event.target.value === INSPECTOR ? invite.project_ids : [],
-                })}>
-                  {ROLES.map((role) => <option key={role.key} value={role.key}>{role.label}</option>)}
-                </select></label>
+              {/* No role picker. Inspector is the only role a manager may
+                  invite, and a select with one option is a control that asks a
+                  question with no answer. The API refuses anything else. */}
               {invite.role === INSPECTOR && (
                 <label className="wide"><span>Projects they may work on</span>
                   <div className="team-projects">
@@ -160,12 +180,50 @@ export function Team({ organizationName }: { organizationName: string }) {
                     ))}
                   </div></label>
               )}
-              <button className="primary-button" disabled={busy || !invite.email.trim()} onClick={() => void sendInvite()}>
+              {projects.length > 0 && invite.project_ids.length === 0 && invite.email.trim() && (
+                <p className="field-hint">Choose at least one project — an inspector with no
+                  project assigned cannot run an inspection.</p>
+              )}
+              <button className="primary-button"
+                      disabled={busy || !invite.email.trim() || invite.project_ids.length === 0}
+                      title={invite.project_ids.length === 0 ? 'Choose at least one project first' : ''}
+                      onClick={() => void sendInvite()}>
                 {busy ? <LoaderCircle className="spinner" size={15} /> : <Send size={15} />}
-                {invite.role === INSPECTOR ? 'Send invitation' : 'Send to Visinexa'}
+                Send invitation
               </button>
             </div>
           </article>
+
+          {invitations.length > 0 && (
+            <article className="identity-card">
+              <header><Send size={18} /><div><h2>Invited</h2>
+                <p>They have not accepted yet. Revoking takes the invitation back before it is used.</p></div></header>
+              {invitations.map((invitation) => (
+                <div className="identity-row team-row" key={invitation.invitation_id}>
+                  <div>
+                    <strong>{invitation.email}</strong>
+                    <small>{invitation.role_label || 'Inspector'}{invitedOn(invitation.created_at)}</small>
+                    <small className={invitation.project_ids.length ? 'team-assigned' : 'team-unassigned'}>
+                      {invitation.project_ids.length
+                        ? invitation.project_ids.map(projectName).join(' · ')
+                        : 'No projects chosen'}
+                    </small>
+                  </div>
+                  <div>
+                    <button className="reject" disabled={busy}
+                            onClick={() => {
+                              if (!window.confirm(`Revoke the invitation to ${invitation.email}?\n\n`
+                                + 'The link in their email stops working. Nothing else changes — '
+                                + 'they never had access.')) return;
+                              void revokeInvitation(invitation);
+                            }}>
+                      <UserMinus size={13} /> Revoke invitation
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </article>
+          )}
 
           <article className="identity-card">
             <header><Users size={18} /><div><h2>People</h2><p>Role changes take effect on their next sign-in. Visinexa staff rows are managed by Visinexa.</p></div></header>
@@ -185,18 +243,32 @@ export function Team({ organizationName }: { organizationName: string }) {
                 <div>
                   {member.manageable ? (
                     <>
-                      <select disabled={busy} value={member.role}
-                              onChange={(event) => void changeRole(member, event.target.value)}>
-                        {!ROLES.some((role) => role.key === member.role) &&
-                          <option value={member.role}>{member.role_label}</option>}
-                        {ROLES.map((role) => <option key={role.key} value={role.key}>{role.label}</option>)}
-                      </select>
-                      {member.role === INSPECTOR && (
+                      {/* The role reads as a label, not a dropdown. A manager
+                          manages inspectors; the only role they could select is
+                          the one already shown, and offering Client Manager
+                          would be a control the API is bound to refuse. */}
+                      <span className="role-label">{member.role_label}</span>
+                      {member.role === INSPECTOR && (<>
                         <button disabled={busy}
                                 onClick={() => { setEditing(editing === member.user_id ? '' : member.user_id); setDraft(member.project_ids); }}>
                           <FolderCheck size={13} /> Projects
                         </button>
-                      )}
+                        <button className="reject" disabled={busy}
+                                onClick={() => {
+                                  const who = member.identifier || member.user_id;
+                                  // Their sign-in is NOT deleted - the account is
+                                  // theirs and may be used elsewhere. Say exactly
+                                  // what happens so nobody expects otherwise.
+                                  if (!window.confirm(
+                                    `Remove ${who} from ${organizationName}?\n\n`
+                                    + 'They lose access to this organization and all project '
+                                    + 'assignments, and their sign-in is deleted unless they also '
+                                    + 'belong to another organization. This cannot be undone.')) return;
+                                  void removeMember(member);
+                                }}>
+                          <UserMinus size={13} /> Remove
+                        </button>
+                      </>)}
                     </>
                   ) : <span className="record-status"><ShieldCheck size={11} /> {member.role_label}</span>}
                 </div>

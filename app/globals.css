@@ -971,3 +971,59 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(151,87,62, .
   .admin-table td { padding: 0; border: 0; }
   .row-actions { margin-top: 8px; text-align: left; }
 }
+.muted-action { color: var(--muted); font-size: 10.5px; font-style: italic; }
+.role-label { color: var(--muted); font-size: 11px; font-weight: 750; }
+.field-hint { margin: -4px 0 10px; color: var(--amber); font-size: 11px; line-height: 1.5; }
+/* Shown where a <select> would be if there were more than one thing to pick. */
+.single-value { display: block; min-height: 45px; padding: 13px 13px 0; color: var(--ink); font-size: 13px; font-weight: 700; }
+
+/* ---- Inspector view (plans/10) --------------------------------------------
+   Deliberately its own vocabulary rather than a variant of .pipeline-*: this is
+   one action on a mostly empty page, for someone holding a phone on a site, not
+   a denser version of the operator console. Type and hit targets are larger
+   than the rest of the app on purpose. */
+.simple-page { max-width: 860px; margin: 0 auto; padding: 46px 26px 60px; display: flex; flex-direction: column; align-items: center; }
+.simple-headline { margin: 0; font-size: clamp(26px, 3.4vw, 34px); font-weight: 700; letter-spacing: -.02em; text-align: center; text-wrap: balance; }
+.simple-sub { margin: 12px 0 0; max-width: 460px; color: var(--muted); font-size: 15px; line-height: 1.5; text-align: center; text-wrap: pretty; }
+.simple-waiting { margin-top: 18px; }
+
+.simple-capture { width: 100%; max-width: 680px; margin-top: 34px; padding: 44px 34px; border: 2px dashed #d8ceca; border-radius: 22px; background: white; box-shadow: 0 18px 60px rgba(43,35,32,.07); display: flex; flex-direction: column; align-items: center; gap: 20px; }
+.simple-capture.has-photo { padding: 14px 14px 24px; border-style: solid; position: relative; }
+.simple-capture img { width: 100%; max-height: 340px; object-fit: cover; border-radius: 14px; }
+.simple-capture-icon { width: 96px; height: 96px; display: grid; place-items: center; border-radius: 50%; background: var(--mint); color: var(--green); }
+.simple-retake { position: absolute; top: 24px; right: 24px; width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 50%; background: rgba(27,21,18,.72); color: white; cursor: pointer; }
+
+/* One action, and it is unmissable. 76px, not the app's usual 45px. */
+.simple-action { width: 100%; min-height: 76px; padding: 0 24px; border: 1px solid var(--ink); border-radius: 16px; background: var(--ink); color: white; display: flex; align-items: center; justify-content: center; gap: 14px; font-size: 20px; font-weight: 700; cursor: pointer; }
+.simple-action:disabled { opacity: .45; cursor: not-allowed; }
+.simple-link { border: 0; background: transparent; color: var(--muted); font-size: 14px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.simple-error { width: 100%; max-width: 680px; margin-top: 18px; padding: 16px 18px; border-radius: 14px; background: #fff0ec; color: #a13f2c; display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 600; }
+
+.simple-result { width: 100%; display: flex; flex-direction: column; gap: 20px; }
+.simple-verdict { display: flex; align-items: center; gap: 16px; padding: 20px 24px; border-radius: 18px; }
+.simple-verdict.attention { background: #fff3df; color: var(--amber); }
+.simple-verdict.clear { background: #edf7f1; color: #387159; }
+.simple-verdict strong { display: block; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
+.simple-verdict small { display: block; margin-top: 3px; color: var(--muted); font-size: 14px; }
+.simple-photo img { width: 100%; max-height: 320px; object-fit: cover; border-radius: 18px; }
+
+.simple-findings { display: flex; flex-direction: column; gap: 12px; }
+.simple-finding { display: flex; gap: 18px; padding: 22px; border: 1px solid var(--line); border-radius: 18px; background: white; }
+.simple-finding-icon { width: 56px; height: 56px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 14px; }
+.simple-finding-icon.safety { background: var(--mint); color: var(--green); }
+.simple-finding-icon.rule { background: #eef1ef; color: #4a5f56; }
+.simple-finding-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.simple-finding-meta small { color: var(--muted); font-size: 12px; font-weight: 600; }
+.simple-finding p { margin: 10px 0 0; font-size: 17px; font-weight: 600; line-height: 1.45; text-wrap: pretty; }
+.simple-severity { padding: 5px 9px; border-radius: 6px; font-size: 10px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+.simple-severity.high { color: #a13f2c; background: #fff0ec; }
+.simple-severity.medium { color: var(--amber); background: #fff3df; }
+.simple-severity.low { color: #744634; background: #f5eeeb; }
+
+@media (max-width: 640px) {
+  .simple-page { padding: 26px 16px 44px; }
+  .simple-capture { padding: 30px 20px; }
+  .simple-finding { padding: 16px; gap: 13px; }
+  .simple-finding-icon { width: 46px; height: 46px; }
+  .simple-finding p { font-size: 16px; }
+}

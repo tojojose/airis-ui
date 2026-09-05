@@ -10,6 +10,7 @@ type Administrator = {
   source: string; granted_by: string; granted_at: string; revocable: boolean;
 };
 type PendingInvite = { email: string; invitation_id: string; invited_by: string; invited_at: string };
+type RevokeResult = { clerk_membership_removed: boolean; clerk_account_deleted: boolean; account_retained_because: string };
 
 const sourceLabel: Record<string, string> = {
   bootstrap: 'Break-glass',
@@ -21,6 +22,7 @@ const sourceLabel: Record<string, string> = {
 export function Administrators({ currentUserId }: { currentUserId: string | null }) {
   const [admins, setAdmins] = useState<Administrator[]>([]);
   const [pending, setPending] = useState<PendingInvite[]>([]);
+  const [viewerIsBreakGlass, setViewerIsBreakGlass] = useState(false);
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -40,9 +42,10 @@ export function Administrators({ currentUserId }: { currentUserId: string | null
     setLoading(true);
     try {
       const data = await request('/v1/admin/administrators') as unknown as
-        { administrators: Administrator[]; pending: PendingInvite[] };
+        { administrators: Administrator[]; pending: PendingInvite[]; viewer_is_break_glass?: boolean };
       setAdmins(data.administrators || []);
       setPending(data.pending || []);
+      setViewerIsBreakGlass(Boolean(data.viewer_is_break_glass));
       setError(null);
     } catch (caught) {
       // Never render an empty table on failure - "no administrators" and "the
@@ -56,20 +59,26 @@ export function Administrators({ currentUserId }: { currentUserId: string | null
 
   async function act(work: () => Promise<unknown>, done?: string) {
     setBusy(true); setError(null); setNotice(null);
+    // `done` is for callers with a fixed message; a caller that needs to report
+    // what the server actually did calls setNotice itself and passes nothing.
     try { await work(); if (done) setNotice(done); await load(); }
     catch (caught) { setError(caught instanceof Error ? caught.message : 'The change could not be completed.'); }
     finally { setBusy(false); }
   }
 
-  const revocableCount = admins.filter((a) => a.revocable && a.status === 'active').length;
+  const activeCount = admins.filter((a) => a.status === 'active').length;
 
   // Mirrors the server guards in admin_api._assert_revocable. These are
   // affordances only - the API enforces all three regardless of what the button
   // is doing, which is why a stale page cannot be used to get around them.
   function blockedReason(admin: Administrator): string | null {
-    if (!admin.revocable) return 'Granted by SYSTEM_ADMIN_USER_IDS. Change it in terraform and redeploy.';
     if (currentUserId && admin.user_id === currentUserId) return 'You cannot revoke your own access. Ask another administrator.';
-    if (revocableCount <= 1) return 'This is the last revocable administrator. Grant another one first.';
+    // "Would this leave nobody?" - counting only REVOCABLE admins was wrong and
+    // greyed out the one real revoke on any workspace with a single break-glass
+    // holder plus one invited admin. A break-glass account is still an
+    // administrator; it just is not revocable from here. The server counts every
+    // active administrator, and this must agree or the button lies.
+    if (activeCount <= 1) return 'This is the last administrator. Grant another one first.';
     return null;
   }
 
@@ -119,10 +128,30 @@ export function Administrators({ currentUserId }: { currentUserId: string | null
                 <td>{admin.granted_by || '—'}</td>
                 <td>{admin.granted_at ? admin.granted_at.slice(0, 10) : '—'}</td>
                 <td className="row-actions">
+                  {/* Break-glass access is changed in terraform, never here, so
+                      the row carries a label rather than a button that exists
+                      only to be permanently disabled. */}
+                  {!admin.revocable ? <span className="muted-action">Managed in terraform</span> :
                   <button className="danger-button" disabled={busy || Boolean(blocked)} title={blocked || 'Revoke administrator access'}
-                          onClick={() => { if (!window.confirm(`Revoke administrator access for ${admin.email || admin.user_id}?`)) return; void act(() => request(`/v1/admin/administrators/${encodeURIComponent(admin.user_id)}`, { method: 'DELETE' }), 'Administrator access revoked.'); }}>
+                          onClick={() => {
+                            const who = admin.email || admin.user_id;
+                            if (!window.confirm(
+                              `Revoke administrator access for ${who}?\n\n`
+                              + 'They are removed from the Visinexa organization, and their '
+                              + 'sign-in is deleted unless they also belong to a client '
+                              + 'organization. Any session they have open is ended on their '
+                              + 'next action. This cannot be undone.')) return;
+                            void act(async () => {
+                              const out = await request(`/v1/admin/administrators/${encodeURIComponent(admin.user_id)}`, { method: 'DELETE' }) as unknown as RevokeResult | null;
+                              // Say what actually happened. "Revoked" alone would hide the
+                              // case where the account was deliberately kept.
+                              setNotice(out?.clerk_account_deleted
+                                ? `${who} was revoked and their sign-in deleted.`
+                                : `${who} was revoked. Their sign-in was kept${out?.account_retained_because ? ` - ${out.account_retained_because}` : ''}.`);
+                            });
+                          }}>
                     <UserMinus size={14} /> Revoke
-                  </button>
+                  </button>}
                 </td>
               </tr>;
             })}
@@ -151,9 +180,9 @@ export function Administrators({ currentUserId }: { currentUserId: string | null
       </section>}
     </>}
 
-    <p className="muted footnote">
+    {viewerIsBreakGlass && <p className="muted footnote">
       Break-glass administrators come from <code>SYSTEM_ADMIN_USER_IDS</code> in terraform and
       cannot be revoked here. They are what gets you back in if this list is ever emptied by mistake.
-    </p>
+    </p>}
   </div>;
 }

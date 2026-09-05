@@ -26,7 +26,7 @@ import {
   Workflow,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AdminConsole, type AdminView } from './admin-console';
 import { API_URL } from './api-config';
 import { ClerkAuth, getClerkToken, type VisinexaAuthState } from './clerk-auth';
@@ -90,7 +90,7 @@ const profiles = [
 type PortfolioView = 'clients' | 'identity' | 'administrators' | 'portfolio-budgets' | 'project-templates';
 type AppView = 'analyze' | 'pipeline' | 'pipeline-history' | 'evaluation' | 'evaluation-history' | 'team' | PortfolioView | AdminView;
 const adminViews: AppView[] = ['clients', 'identity', 'administrators', 'portfolio-budgets', 'project-templates', 'knowledge', 'prompts', 'models', 'usage'];
-const initialAuth: VisinexaAuthState = { ready: false, signedIn: false, userId: null, isAdmin: false, isManager: false, organizationId: null, organizationSlug: null, organizationName: 'Operations workspace' };
+const initialAuth: VisinexaAuthState = { ready: false, signedIn: false, userId: null, isAdmin: false, isInspector: false, isManager: false, organizationId: null, organizationSlug: null, organizationName: 'Operations workspace' };
 
 // ---------------------------------------------------------------- branding
 // Visinexa is the OPERATOR identity: it belongs on the sign-in screen and in
@@ -148,6 +148,9 @@ export default function Home() {
   const [auth, setAuth] = useState<VisinexaAuthState>(initialAuth);
   const [view, setView] = useState<AppView>('pipeline');
   const [inspectionScope, setInspectionScope] = useState({ orgId: '', orgName: '', projectId: '', projectName: '' });
+  // An inspector's sites live in the nav rather than a dropdown, so the shell
+  // needs the list. Only fetched for that persona - nobody else's nav uses it.
+  const [inspectorSites, setInspectorSites] = useState<{ project_id: string; name: string }[]>([]);
   const cameraInput = useRef<HTMLInputElement>(null);
   const uploadInput = useRef<HTMLInputElement>(null);
   const profile = useMemo(() => profiles.find((item) => item.id === profileId) ?? profiles[0], [profileId]);
@@ -165,6 +168,33 @@ export default function Home() {
     && inspectionScope.orgName
     ? inspectionScope.orgName
     : auth.organizationName;
+
+  useEffect(() => {
+    if (!auth.signedIn || !auth.isInspector) { setInspectorSites([]); return; }
+    let active = true;
+    void (async () => {
+      try {
+        const token = await getClerkToken(true);
+        if (!token) return;
+        const response = await fetch(`${API_URL}/v1/projects`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!response.ok) return;
+        const body = await response.json() as { projects?: { project_id: string; name: string }[] };
+        if (!active) return;
+        const sites = body.projects || [];
+        setInspectorSites(sites);
+        // Pin the site so the screens never have to ask. With one site there is
+        // nothing to choose; with several the nav choice is the answer.
+        setInspectionScope((current) => current.projectId
+          && sites.some((site) => site.project_id === current.projectId)
+          ? current
+          : (sites[0]
+            ? { orgId: auth.organizationId || '', orgName: auth.organizationName,
+                projectId: sites[0].project_id, projectName: sites[0].name }
+            : current));
+      } catch { /* the screens still work; the nav just has no shortcuts */ }
+    })();
+    return () => { active = false; };
+  }, [auth.isInspector, auth.organizationId, auth.organizationName, auth.signedIn]);
 
   useEffect(() => {
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => undefined);
@@ -253,9 +283,36 @@ export default function Home() {
       <aside className={`sidebar ${auth.isAdmin ? 'admin-sidebar' : ''}`}>
         <WorkspaceBrand isAdmin={auth.isAdmin} organizationName={auth.organizationName} />
         <nav aria-label="Primary navigation">
-          {auth.isAdmin && <p className="nav-section nav-section-first">SOLUTION DISCOVERY</p>}
-          <button className={`nav-item ${view === 'pipeline' ? 'active' : ''}`} onClick={() => setView('pipeline')}><Workflow size={18} /><span>New Inspection</span></button>
-          <button className={`nav-item subnav-item ${view === 'pipeline-history' ? 'active' : ''}`} aria-label="Inspection history" onClick={() => setView('pipeline-history')}><History size={15} /><span>Inspection History</span></button>
+          {/* INSPECTOR: the sites they may work on ARE the navigation. There is no
+              project dropdown anywhere in their app - choosing here is the only
+              place it is asked, and with one site it is not asked at all. */}
+          {auth.isInspector ? <>
+            <p className="nav-section nav-section-first">{inspectorSites.length > 1 ? 'YOUR SITES' : 'YOUR SITE'}</p>
+            {inspectorSites.map((site) => {
+              const here = inspectionScope.projectId === site.project_id;
+              const pick = () => setInspectionScope({
+                orgId: auth.organizationId || '', orgName: auth.organizationName,
+                projectId: site.project_id, projectName: site.name });
+              // Past checks hangs off its site rather than sitting on its own,
+              // because a check only ever belongs to one site - a single global
+              // entry would have to ask which, and asking is what this nav is
+              // for avoiding.
+              return <Fragment key={site.project_id}>
+                <button className={`nav-item ${here && view === 'pipeline' ? 'active' : ''}`}
+                        onClick={() => { pick(); setView('pipeline'); }}>
+                  <Building2 size={18} /><span>{site.name}</span>
+                </button>
+                <button className={`nav-item subnav-item ${here && view === 'pipeline-history' ? 'active' : ''}`}
+                        onClick={() => { pick(); setView('pipeline-history'); }}>
+                  <History size={15} /><span>Past checks</span>
+                </button>
+              </Fragment>;
+            })}
+          </> : <>
+            {auth.isAdmin && <p className="nav-section nav-section-first">SOLUTION DISCOVERY</p>}
+            <button className={`nav-item ${view === 'pipeline' ? 'active' : ''}`} onClick={() => setView('pipeline')}><Workflow size={18} /><span>New Inspection</span></button>
+            <button className={`nav-item subnav-item ${view === 'pipeline-history' ? 'active' : ''}`} aria-label="Inspection history" onClick={() => setView('pipeline-history')}><History size={15} /><span>Inspection History</span></button>
+          </>}
           {auth.isManager && !auth.isAdmin && <button className={`nav-item subnav-item ${view === 'team' ? 'active' : ''}`} onClick={() => setView('team')}><UserRoundCog size={15} /><span>Team</span></button>}
           {auth.isAdmin && <>
             <p className="nav-section">CLIENT PORTFOLIOS</p>
@@ -280,12 +337,16 @@ export default function Home() {
         <header className="topbar">
           <div className="topbar-left">
             <div>
-              <div className="eyebrow">{auth.isAdmin ? 'VISINEXA OPERATIONS' : 'SAFETY COMPLIANCE'}</div>
-              <div className="workspace-title">{topbarOrganizationName}</div>
+              <div className="eyebrow">{auth.isInspector ? (view === 'pipeline-history' ? 'PAST CHECKS' : 'SITE')
+                : auth.isAdmin ? 'VISINEXA OPERATIONS' : 'SAFETY COMPLIANCE'}</div>
+              <div className="workspace-title">{auth.isInspector
+                ? (inspectionScope.projectName || auth.organizationName)
+                : topbarOrganizationName}</div>
             </div>
           </div>
           <div className="topbar-actions">
-            <span className="connection"><span /> API connected</span>
+            {/* Backend status is not an inspector's problem. */}
+            {!auth.isInspector && <span className="connection"><span /> API connected</span>}
             <NotificationCenter auth={auth} />
             {auth.isAdmin && <div className="persona-card topbar-persona"><span className="admin">V</span><div><strong>Visinexa Admin</strong><small>{auth.organizationName}</small></div></div>}
             <ClerkAuth onChange={handleAuthChange} />

@@ -119,6 +119,30 @@ type PipelineRunOut = {
 
 export type InspectionPurpose = 'operational' | 'evaluation';
 export type InspectionProfile = 'visual_safety' | 'regulatory_compliance';
+
+// "High/medium/low" is a rating; a field worker needs to know what to DO.
+const PLAIN_SEVERITY: Record<'high' | 'medium' | 'low', string> = {
+  high: 'Stop and fix', medium: 'Needs a look', low: 'Minor',
+};
+
+/** Which kind of rule a finding came from. Replaces the profile picker: the
+ *  inspector never chooses, the result just says which it was. */
+function HardHatIcon() {
+  return <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M2.5 17h19" /><path d="M4.5 17v-2.5a7.5 7.5 0 0 1 15 0V17" />
+    <path d="M9.5 7.4V4.6a1.1 1.1 0 0 1 1.1-1.1h2.8a1.1 1.1 0 0 1 1.1 1.1v2.8" />
+  </svg>;
+}
+
+function RuleBookIcon() {
+  return <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H19v16H6.5A2.5 2.5 0 0 0 4 20.5z" />
+    <path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H19v4H6.5A2.5 2.5 0 0 1 4 20.5z" />
+    <path d="M8.5 8h6" /><path d="M8.5 11.5h4" />
+  </svg>;
+}
 export type InspectionProject = {
   project_id: string; org_id: string; name: string; status: string;
   effective_status?: string; project_type?: string;
@@ -276,7 +300,13 @@ export function PipelineRun({ auth, purpose = 'operational', initialOrgId = '', 
         const available = (payload.projects || []).filter((project) => project.status === 'active');
         if (active) {
           setProjects(available);
-          setSelectedProject((current) => available.some((project) => project.project_id === current) ? current : '');
+          // With exactly one project there is no choice to make, and the UI
+          // shows its name instead of a select - so select it here, or the
+          // name would be displayed while the state stayed empty and Run did
+          // nothing.
+          setSelectedProject((current) =>
+            available.some((project) => project.project_id === current) ? current
+              : (available.length === 1 ? available[0].project_id : ''));
         }
       } catch (caught) {
         if (active) setError(caught instanceof Error ? caught.message : 'Could not load projects.');
@@ -415,6 +445,91 @@ export function PipelineRun({ auth, purpose = 'operational', initialOrgId = '', 
     }
   }
 
+  // ------------------------------------------------------------------ INSPECTOR
+  // A separate return rather than conditionals threaded through the full page.
+  // The inspector's screen is not the admin screen with parts hidden - it is a
+  // different screen over the same state and handlers - and branching here means
+  // the admin view below is untouched by anything done for the field.
+  if (auth.isInspector && purpose === 'operational') {
+    const attention = findings.length;
+    return (
+      <div className="simple-page">
+        {!run && <>
+          <h1 className="simple-headline">Take a photo of the work area</h1>
+          <p className="simple-sub">We will check it and tell you what needs attention.</p>
+
+          <div className={`simple-capture ${preview ? 'has-photo' : ''}`}>
+            {preview ? <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={preview} alt="The photo you are about to check" />
+              <button className="simple-retake" onClick={reset} aria-label="Use a different photo"><X size={18} /></button>
+            </> : (
+              <span className="simple-capture-icon"><ImagePlus size={46} /></span>
+            )}
+
+            <button className="simple-action" disabled={running || !auth.signedIn || !selectedProject}
+                    onClick={() => { if (file) void runPipeline(); else input.current?.click(); }}>
+              {running ? <LoaderCircle className="spinner" size={26} /> : <ImagePlus size={26} />}
+              <span>{running ? 'Checking the photo…' : file ? 'Check this photo' : 'Take photo'}</span>
+            </button>
+
+            {!file && <button className="simple-link" onClick={() => input.current?.click()}>Choose a photo instead</button>}
+            <input ref={input} hidden type="file" accept="image/jpeg,image/png,image/webp" capture="environment"
+                   onChange={(event) => selectFile(event.target.files?.[0])} />
+          </div>
+
+          {error && <div className="simple-error" role="alert"><TriangleAlert size={20} /><span>{error}</span></div>}
+          {running && <p className="simple-sub simple-waiting">This takes a few seconds. You can keep the phone still.</p>}
+        </>}
+
+        {run && <div className="simple-result">
+          <div className={`simple-verdict ${attention ? 'attention' : 'clear'}`}>
+            {attention
+              ? <TriangleAlert size={34} strokeWidth={1.7} />
+              : <Check size={34} strokeWidth={2} />}
+            <div>
+              <strong>{attention
+                ? `${attention} thing${attention === 1 ? '' : 's'} need${attention === 1 ? 's' : ''} attention`
+                : 'Nothing found'}</strong>
+              <small>{attention ? 'Show this to your supervisor' : 'This area looks fine'}</small>
+            </div>
+          </div>
+
+          {preview && <div className="simple-photo">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={preview} alt="The area you checked" />
+          </div>}
+
+          <div className="simple-findings">
+            {findings.map((finding) => {
+              const regulatory = Boolean(finding.citations?.length);
+              return (
+                <article className="simple-finding" key={finding.id}>
+                  <span className={`simple-finding-icon ${regulatory ? 'rule' : 'safety'}`}>
+                    {regulatory ? <RuleBookIcon /> : <HardHatIcon />}
+                  </span>
+                  <div>
+                    <div className="simple-finding-meta">
+                      <span className={`simple-severity ${finding.severity}`}>{PLAIN_SEVERITY[finding.severity]}</span>
+                      <small>{regulatory
+                        ? (finding.citations?.[0]?.section ? `Rule ${finding.citations[0].section}` : 'Regulation')
+                        : 'General safety'}</small>
+                    </div>
+                    <p>{finding.description}</p>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          <button className="simple-action" onClick={reset}>
+            <ImagePlus size={24} /><span>Check another area</span>
+          </button>
+        </div>}
+      </div>
+    );
+  }
+
   return (
     <div className="pipeline-page">
       <header className="pipeline-heading">
@@ -433,10 +548,14 @@ export function PipelineRun({ auth, purpose = 'operational', initialOrgId = '', 
             <option value="">{purpose === 'evaluation' ? 'System sandbox' : 'Select a client'}</option>
             {clients.map((client) => <option value={client.org_id} key={client.org_id}>{client.name}</option>)}
           </select></label>}
-          <label><span>Project</span><select value={selectedProject} disabled={!selectedOrg || scopeLoading} onChange={(event) => setSelectedProject(event.target.value)}>
-            <option value="">{purpose === 'evaluation' && !selectedOrg ? 'No project — sandbox' : 'Select a project'}</option>
-            {projects.map((item) => <option value={item.project_id} key={item.project_id}>{item.name}</option>)}
-          </select></label>
+          {/* A select with a single option is a question with one answer. An
+              inspector assigned to one project should just be told which one. */}
+          {projects.length === 1 && !auth.isAdmin
+            ? <label><span>Project</span><output className="single-value">{projects[0].name}</output></label>
+            : <label><span>Project</span><select value={selectedProject} disabled={!selectedOrg || scopeLoading} onChange={(event) => setSelectedProject(event.target.value)}>
+                <option value="">{purpose === 'evaluation' && !selectedOrg ? 'No project — sandbox' : 'Select a project'}</option>
+                {projects.map((item) => <option value={item.project_id} key={item.project_id}>{item.name}</option>)}
+              </select></label>}
         </div>
         <div className="inspection-profile-picker">
           <div className="inspection-profile-heading"><span>INSPECTION PROFILE</span><strong>Choose how this image should be reviewed</strong></div>
